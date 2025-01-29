@@ -1,0 +1,15 @@
+{
+  "originHash" : "559d3b39e89dfa778779ab1ee9ae0dc854e14266d3c3feaed2ed10ea784bb24d",
+  "pins" : [
+    {
+      "identity" : "swiftymarisa",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/vovasty/SwiftyMarisa/",
+      "state" : {
+        "branch" : "master",
+        "revision" : "a064be8398e54213d0cca5446a07bb9cfad690f5"
+      }
+    }
+  ],
+  "version" : 3
+}
