@@ -12,6 +12,10 @@ let package = Package(
             name: "SwiftNGram",
             targets: ["SwiftNGram"]
         ),
+        .executable(
+            name: "SwiftNGramExample",
+            targets: ["SwiftNGramExample"]
+        ),
     ],
     dependencies: [
         .package(url: "https://github.com/vovasty/SwiftyMarisa/", branch: "master")
@@ -21,6 +25,10 @@ let package = Package(
             name: "SwiftNGram",
             dependencies: ["SwiftyMarisa"],
             swiftSettings: [.interoperabilityMode(.Cxx)]
+        ),
+        .executableTarget(
+            name: "SwiftNGramExample",
+            dependencies: ["SwiftNGram"]
         ),
         .testTarget(
             name: "SwiftNGramTests",
