@@ -1,8 +1,9 @@
 import XCTest
 @testable import SwiftNGram
+import Tokenizers
 
 class SwiftNGramTests: XCTestCase {
-    func testInferencePerformance() {
+    func testInferencePerformance() async {
         let baseFilename = "/Users/takahashinaoki/Dev/projects/mitou/SwiftNGram/marisa/lm"
 
         guard let lmBase = LM(baseFilename: baseFilename, n: 5, d: 0.75) else {
