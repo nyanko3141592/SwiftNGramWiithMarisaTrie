@@ -8,7 +8,16 @@
 import Foundation
 import SwiftyMarisa
 
-class SwiftTrainer {
+extension ZenzTokenizer {
+    func encodeToStringKey(text: String) -> String {
+        let encoded = self.encode(text: text)
+        let scalars = encoded.map { Unicode.Scalar(UInt32(exactly: $0)!)!}
+        let unicodeScalarView = String.UnicodeScalarView.init(scalars)
+        return String(unicodeScalarView)
+    }
+}
+
+final class SwiftTrainer {
     let n: Int
     let bos: String = "<s>"
     let eos: String = "</s>"

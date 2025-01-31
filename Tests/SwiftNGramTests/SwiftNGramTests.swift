@@ -18,11 +18,16 @@ class SwiftNGramTests: XCTestCase {
         let inputText = "彼は"
 
         for mixAlpha in alphaList {
-            measure {
-                let generatedText = generateText(inputText: inputText, mixAlpha: mixAlpha, lmBase: lmBase, lmPerson: lmPerson)
-                XCTAssertFalse(generatedText.isEmpty, "Generated text should not be empty")
-                print("Alpha \(mixAlpha): Generated text = \(generatedText)")
-            }
+            let generatedText = generateText(inputText: inputText, mixAlpha: mixAlpha, lmBase: lmBase, lmPerson: lmPerson)
+            XCTAssertFalse(generatedText.isEmpty, "Generated text should not be empty")
+            print("Alpha \(mixAlpha): Generated text = \(generatedText)")
         }
+    }
+
+    func testTokenizers() async throws {
+        let tokenizer = try await ZenzTokenizer()
+        let inputIds = tokenizer.encode(text: "これは日本語です")
+        XCTAssertEqual(inputIds, [268, 262, 253, 304, 358, 698, 246, 255])
+        XCTAssertEqual(tokenizer.decode(tokens: inputIds), "これは日本語です")
     }
 }
