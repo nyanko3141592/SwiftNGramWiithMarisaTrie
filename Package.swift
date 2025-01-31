@@ -14,7 +14,7 @@ let package = Package(
         ),
         .executable(
             name: "SwiftNGramExample",
-            targets: ["SwiftNGramExample"]
+            targets: ["Examples"]
         ),
     ],
     dependencies: [
@@ -26,13 +26,15 @@ let package = Package(
             dependencies: ["SwiftyMarisa"],
             swiftSettings: [.interoperabilityMode(.Cxx)]
         ),
-        .executableTarget(
-            name: "SwiftNGramExample",
-            dependencies: ["SwiftNGram"]
+        .target(
+            name: "Examples",
+            dependencies: ["SwiftNGram"],
+            swiftSettings: [.interoperabilityMode(.Cxx)]
         ),
         .testTarget(
             name: "SwiftNGramTests",
-            dependencies: ["SwiftNGram"]
+            dependencies: ["SwiftNGram"],
+            swiftSettings: [.interoperabilityMode(.Cxx)]
         ),
     ]
 )
