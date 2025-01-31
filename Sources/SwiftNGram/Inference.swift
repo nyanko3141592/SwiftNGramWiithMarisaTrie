@@ -65,6 +65,14 @@ public class LM {
     }
 
     public func predict(_ ngram: [String]) -> Double {
+        // ユニグラムの場合（再帰の終了条件）
+        if ngram.count == 1 {
+            let c = ngram[0]
+            let c_abc_c = getValue(from: c_abc, key: c) ?? 0
+            let total_tokens = getValue(from: c_abx, key: "") ?? 1  // 総トークン数
+            return Double(c_abc_c) / Double(total_tokens)
+        }
+
         let abc = ngram.joined(separator: "|")
         let ab = ngram.dropLast().joined(separator: "|")
 

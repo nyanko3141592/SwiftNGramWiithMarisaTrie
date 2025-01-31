@@ -10,18 +10,16 @@ import Foundation
 
 
 func inference(){
-    print("inference")
-    let baseFilename = "/Users/takahashinaoki/Dev/projects/mitou/SwiftNGram/marisa/lm"
+    let baseFilename = "/Users/takahashinaoki/Dev/projects/mitou/SwiftNGram/lm"
+    print("Loading LM base: \(baseFilename)")
     guard let lmBase = LM(baseFilename: baseFilename, n: 5, d: 0.75) else {
         print("[Error] Failed to load LM base")
         return
     }
-    print("loaded base")
     guard let lmPerson = LM(baseFilename: baseFilename, n: 5, d: 0.75) else {
         print("[Error] Failed to load LM person")
         return
     }
-    print("loaded person")
 
     let alphaList: [Double] = [0.1, 0.3, 0.5, 0.7, 0.9]
 
@@ -32,6 +30,7 @@ func inference(){
             var nextWord = ""
 
             let suffix = Array(text.map { String($0) }.suffix(lmBase.n - 1))
+
             for w in lmBase.vocabSet {
                 let pBase = lmBase.predict(suffix + [w])
                 let pPerson = lmPerson.predict(suffix + [w])
@@ -61,17 +60,16 @@ func inference(){
 
 }
 
-
 func runExample() {
-    let trainFilePath = "train.txt"
+    let trainFilePath = "/Users/takahashinaoki/Dev/projects/mitou/SwiftNGram/train.txt"
     let modelBase = "lm"
-    let testText = "彼は"
+    let ngramSize = 5
 
     print("=== Training Model ===")
-    trainNGramFromFile(filePath: trainFilePath, n: 5, baseDirectory: "/Users/takahashinaoki/Dev/projects/mitou/SwiftNGram/marisa", baseFilename: modelBase)
+    trainNGramFromFile(filePath: trainFilePath, n: ngramSize, baseFilename: modelBase)
 
     print("=== Loading Model for Inference ===")
     inference()
-}
+}   
 
 runExample()
