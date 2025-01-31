@@ -8,6 +8,14 @@
 import SwiftNGram
 import Foundation
 
+func measureExecutionTime(block: () -> String) -> (String, Double) {
+    let start = DispatchTime.now()
+    let result = block()
+    let end = DispatchTime.now()
+    let nanoTime = end.uptimeNanoseconds - start.uptimeNanoseconds
+    let milliTime = Double(nanoTime) / 1_000_000 // ミリ秒単位
+    return (result, milliTime)
+}
 
 func inference(){
     let baseFilename = "/Users/takahashinaoki/Dev/projects/mitou/SwiftNGram/marisa/lm"
@@ -24,41 +32,18 @@ func inference(){
     let alphaList: [Double] = [0.1, 0.3, 0.5, 0.7, 0.9]
 
     for mixAlpha in alphaList {
-        var text = "彼は"
-        while text.count < 100 {
-            var maxProb = -Double.infinity
-            var nextWord = ""
+        let inputText = "彼は"
 
-            let suffix = Array(text.map { String($0) }.suffix(lmBase.n - 1))
-
-            for w in lmBase.vocabSet {
-                let pBase = lmBase.predict(suffix + [w])
-                let pPerson = lmPerson.predict(suffix + [w])
-
-                // `pBase` や `pPerson` が 0.0 にならないようチェック
-                if pBase == 0.0 || pPerson == 0.0 {
-                    continue
-                }
-
-                let mixLogProb = log2(pBase) + mixAlpha * (log2(pPerson) - log2(pBase))
-
-                if mixLogProb > maxProb {
-                    maxProb = mixLogProb
-                    nextWord = w
-                }
-            }
-
-            if nextWord.isEmpty {
-                break
-            }
-
-            if nextWord == lmBase.eos { break }
-            text += nextWord
+        // 時間計測
+        let (generatedText, elapsedTime) = measureExecutionTime {
+            generateText(inputText: inputText, mixAlpha: mixAlpha, lmBase: lmBase, lmPerson: lmPerson, maxCount: 20)
         }
-        print("alpha = \(mixAlpha): \(text)")
-    }
 
+        print("alpha = \(mixAlpha): \(generatedText)")
+        print("Execution Time: \(elapsedTime) ms")
+    }
 }
+
 
 func runExample() {
     let trainFilePath = "/Users/takahashinaoki/Dev/projects/mitou/SwiftNGram/train.txt"
