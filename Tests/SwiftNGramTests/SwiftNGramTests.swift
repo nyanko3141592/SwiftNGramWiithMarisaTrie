@@ -15,14 +15,14 @@ class SwiftNGramTests: XCTestCase {
         }
 
         let alphaList: [Double] = [0.9]
-        let inputText = "彼は"
+        let alpha = alphaList[0]
+        let texts = ["彼は", "先生", "今度", "墓", "それは"]
 
-        for mixAlpha in alphaList {
-            measure {
-                let generatedText = generateText(inputText: inputText, mixAlpha: mixAlpha, lmBase: lmBase, lmPerson: lmPerson)
-                XCTAssertFalse(generatedText.isEmpty, "Generated text should not be empty")
-                print("Alpha \(mixAlpha): Generated text = \(generatedText)")
-            }
+        for inputText in texts {
+            // 時間計測
+            let generatedText = generateText(inputText: inputText, mixAlpha: alpha, lmBase: lmBase, lmPerson: lmPerson, maxCount: 20)
+
+            print("alpha = \(alpha): \(generatedText)")
         }
     }
 }

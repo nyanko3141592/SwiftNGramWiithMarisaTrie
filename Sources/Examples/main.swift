@@ -29,17 +29,17 @@ func inference(){
         return
     }
 
-    let alphaList: [Double] = [0.1, 0.3, 0.5, 0.7, 0.9]
+    let alphaList: [Double] = [0.9]
+    let alpha = alphaList[0]
+    let texts = ["彼は", "先生", "今度", "墓", "それは"]
 
-    for mixAlpha in alphaList {
-        let inputText = "彼は"
-
+    for inputText in texts {
         // 時間計測
         let (generatedText, elapsedTime) = measureExecutionTime {
-            generateText(inputText: inputText, mixAlpha: mixAlpha, lmBase: lmBase, lmPerson: lmPerson, maxCount: 20)
+            generateText(inputText: inputText, mixAlpha: alpha, lmBase: lmBase, lmPerson: lmPerson, maxCount: 20)
         }
 
-        print("alpha = \(mixAlpha): \(generatedText)")
+        print("alpha = \(alpha): \(generatedText)")
         print("Execution Time: \(elapsedTime) ms")
     }
 }
