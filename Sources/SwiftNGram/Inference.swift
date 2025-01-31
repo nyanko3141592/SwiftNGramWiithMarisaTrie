@@ -30,7 +30,6 @@ private func getValue(from trie: Marisa, key: String) -> UInt32? {
 /// Kneser-Ney 言語モデル
 public class LM {
     public let n: Int
-    public let eos: String = "</s>"
     public let d: Double
 
     // Tries
@@ -41,9 +40,6 @@ public class LM {
     let u_xbx: Marisa
     let r_xbx: Marisa
     let vocabTrie: Marisa
-
-    // 語彙セット
-    public var vocabSet: Set<String>
 
     // キャッシュ
     private var predictCache: [String: Double]
@@ -70,8 +66,6 @@ public class LM {
         self.r_xbx = Marisa()
         self.vocabTrie = Marisa()
 
-        self.vocabSet = Set<String>()
-
         self.predictCache = [:]
         self.c_abcCache = [:]
         self.c_abxCache = [:]
@@ -82,22 +76,13 @@ public class LM {
 
         self.totalTokens = 0
 
-        // ロード
-        do {
-            try c_abc.load("\(baseFilename)_c_abc.marisa")
-            try c_abx.load("\(baseFilename)_c_abx.marisa")
-            try u_abx.load("\(baseFilename)_u_abx.marisa")
-            try u_xbc.load("\(baseFilename)_u_xbc.marisa")
-            try u_xbx.load("\(baseFilename)_u_xbx.marisa")
-            try r_xbx.load("\(baseFilename)_r_xbx.marisa")
-            try vocabTrie.load("\(baseFilename)_vocab.marisa")
-        } catch {
-            // ロード失敗時は nil
-            return nil
-        }
-
-        // 語彙セット
-        self.vocabSet = Set(vocabTrie.search("", .predictive))
+        c_abc.load("\(baseFilename)_c_abc.marisa")
+        c_abx.load("\(baseFilename)_c_abx.marisa")
+        u_abx.load("\(baseFilename)_u_abx.marisa")
+        u_xbc.load("\(baseFilename)_u_xbc.marisa")
+        u_xbx.load("\(baseFilename)_u_xbx.marisa")
+        r_xbx.load("\(baseFilename)_r_xbx.marisa")
+        vocabTrie.load("\(baseFilename)_vocab.marisa")
 
         // 全てのストアドプロパティに仮の値が入ったので、ここから初めて self のメソッドを呼べる
         // totalTokens の最終値をセット
@@ -159,27 +144,25 @@ public class LM {
     }
 
     /// Kneser-Ney の確率を求める
-    public func predict(_ ngram: [String]) -> Double {
+    public func predict(_ ngram: some BidirectionalCollection<Int>, nextWord: Int, tokenizer: borrowing ZenzTokenizer) -> Double {
         // キャッシュにある場合は即返す
-        let joinedKey = ngram.joined(separator: "|")
-        if let cached = predictCache[joinedKey] {
+        // ngram = [a, b, c]
+        // abc = "a|b|c"
+        // ab  = "a|b"
+        let ab = tokenizer.tokensToStringKey(tokens: ngram)
+        let c = tokenizer.tokensToStringKey(tokens: [nextWord])
+        let abc = ab + c
+        if let cached = predictCache[abc] {
             return cached
         }
 
         // ユニグラムの場合（再帰の終了条件）
-        if ngram.count == 1 {
-            let c = ngram[0]
+        if ngram.count == 0 {
             let c_abc_c = getValueC_abc(c) ?? 0
             let prob = Double(c_abc_c) / Double(totalTokens)
-            predictCache[joinedKey] = prob
+            predictCache[abc] = prob
             return prob
         }
-
-        // ngram = [a, b, c]
-        // abc = "a|b|c"
-        // ab  = "a|b"
-        let abc = ngram.joined(separator: "|")
-        let ab = ngram.dropLast().joined(separator: "|")
 
         let c_abc_abc = getValueC_abc(abc) ?? 0
         let c_abx_ab  = getValueC_abx(ab) ?? 1
@@ -191,32 +174,35 @@ public class LM {
         let gamma = d * Double(u_abx_ab) / Double(c_abx_ab)
 
         // 再帰呼び出し
-        let prob = alpha + gamma * predict(Array(ngram.dropFirst()))
-        predictCache[joinedKey] = prob
+        let prob = alpha + gamma * self.predict(ngram.dropFirst(), nextWord: nextWord, tokenizer: tokenizer)
+        predictCache[abc] = prob
         return prob
     }
 }
 
 /// テキスト生成
-public func generateText(inputText: String,
-                         mixAlpha: Double,
-                         lmBase: LM,
-                         lmPerson: LM,
-                         maxCount: Int = 100) -> String
+public func generateText(
+    inputText: String,
+    mixAlpha: Double,
+    lmBase: LM,
+    lmPerson: LM,
+    tokenizer: ZenzTokenizer,
+    maxCount: Int = 100
+) -> String
 {
     // もともとの文字列を配列化
-    var chars = Array(inputText)
+    var tokens = tokenizer.encode(text: inputText)
     // suffix を事前に取り出す
-    var suffix = chars.suffix(lmBase.n - 1).map { String($0) }
+    var suffix = tokens.suffix(lmBase.n - 1)
 
-    while chars.count < maxCount {
+    while tokens.count < maxCount {
         var maxProb = -Double.infinity
-        var nextWord = ""
+        var nextWord = -1
 
         // 全候補を探索
-        for w in lmBase.vocabSet {
-            let pBase = lmBase.predict(suffix + [w])
-            let pPerson = lmPerson.predict(suffix + [w])
+        for w in 0 ..< tokenizer.vocabSize {
+            let pBase = lmBase.predict(suffix, nextWord: w, tokenizer: tokenizer)
+            let pPerson = lmPerson.predict(suffix, nextWord: w, tokenizer: tokenizer)
 
             // どちらかが 0 ならスキップ
             if pBase == 0.0 || pPerson == 0.0 {
@@ -232,13 +218,13 @@ public func generateText(inputText: String,
         }
 
         // 候補なし or EOS なら生成終了
-        if nextWord.isEmpty || nextWord == lmBase.eos {
+        if nextWord == -1 || nextWord == tokenizer.endTokenID {
             break
         }
 
         // 1文字単位のモデルなら append で文字列に追加
         // (単語単位なら間にスペースを入れる等の工夫が必要)
-        chars.append(contentsOf: nextWord)
+        tokens.append(nextWord)
 
         // suffix を更新
         suffix.append(nextWord)
@@ -246,5 +232,5 @@ public func generateText(inputText: String,
             suffix.removeFirst()
         }
     }
-    return String(chars)
+    return tokenizer.decode(tokens: tokens)
 }
