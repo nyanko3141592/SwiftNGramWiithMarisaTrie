@@ -86,3 +86,33 @@ public class LM {
         return alpha + gamma * predict(Array(ngram.dropFirst()))
     }
 }
+
+func generateText(inputText: String, mixAlpha: Double, lmBase: LM, lmPerson: LM) -> String {
+    var text = inputText
+    while text.count < 100 {
+        var maxProb = -Double.infinity
+        var nextWord = ""
+
+        let suffix = Array(text.map { String($0) }.suffix(lmBase.n - 1))
+
+        for w in lmBase.vocabSet {
+            let pBase = lmBase.predict(suffix + [w])
+            let pPerson = lmPerson.predict(suffix + [w])
+
+            if pBase == 0.0 || pPerson == 0.0 {
+                continue
+            }
+
+            let mixLogProb = log2(pBase) + mixAlpha * (log2(pPerson) - log2(pBase))
+
+            if mixLogProb > maxProb {
+                maxProb = mixLogProb
+                nextWord = w
+            }
+        }
+
+        if nextWord.isEmpty || nextWord == lmBase.eos { break }
+        text += nextWord
+    }
+    return text
+}
