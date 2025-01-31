@@ -17,7 +17,7 @@ func measureExecutionTime(block: () -> String) -> (String, Double) {
     return (result, milliTime)
 }
 
-func inference(){
+func inference() async {
     let baseFilename = "/Users/takahashinaoki/Dev/projects/mitou/SwiftNGram/marisa/lm"
     print("Loading LM base: \(baseFilename)")
     guard let lmBase = LM(baseFilename: baseFilename, n: 5, d: 0.75) else {
@@ -46,8 +46,8 @@ func inference(){
 }
 
 
-func runExample() {
-    let trainFilePath = "/Users/takahashinaoki/Dev/projects/mitou/SwiftNGram/train.txt"
+func runExample() async {
+    let trainFilePath = "/Users/miwa/Desktop/SwiftNGramWiithMarisaTrie/train.txt"
     let modelBase = "lm"
     let ngramSize = 5
 
