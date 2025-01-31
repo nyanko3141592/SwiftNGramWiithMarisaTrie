@@ -123,9 +123,23 @@ class SwiftTrainer {
 
     /// 上記のカウント結果を marisa ファイルとして保存
     func saveToMarisaTrie(baseFilename: String) {
-        let fileManager = FileManager.default
+       let fileManager = FileManager.default
         let currentDir = fileManager.currentDirectoryPath  // カレントディレクトリの取得
-
+        
+        // marisa ディレクトリの作成
+        let marisaDir = URL(fileURLWithPath: currentDir).appendingPathComponent("marisa")
+        do {
+            try fileManager.createDirectory(
+                at: marisaDir,
+                withIntermediateDirectories: true,  // 中間ディレクトリも作成
+                attributes: nil
+            )
+        } catch {
+            print("ディレクトリ作成エラー: \(error)")
+            return
+        }
+        
+        // ファイルパスの生成（marisa ディレクトリ内に配置）
         let paths = [
             "\(baseFilename)_c_abc.marisa",
             "\(baseFilename)_c_abx.marisa",
@@ -135,7 +149,7 @@ class SwiftTrainer {
             "\(baseFilename)_r_xbx.marisa",
             "\(baseFilename)_vocab.marisa"
         ].map { file in
-            URL(fileURLWithPath: currentDir).appendingPathComponent(file).path
+            marisaDir.appendingPathComponent(file).path
         }
 
         // c_abc

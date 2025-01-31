@@ -10,7 +10,7 @@ import Foundation
 
 
 func inference(){
-    let baseFilename = "/Users/takahashinaoki/Dev/projects/mitou/SwiftNGram/lm"
+    let baseFilename = "/Users/takahashinaoki/Dev/projects/mitou/SwiftNGram/marisa/lm"
     print("Loading LM base: \(baseFilename)")
     guard let lmBase = LM(baseFilename: baseFilename, n: 5, d: 0.75) else {
         print("[Error] Failed to load LM base")
