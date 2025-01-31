@@ -13,12 +13,13 @@ class SwiftNGramTests: XCTestCase {
             XCTFail("[Error] Failed to load LM person")
             return
         }
+        let tokenizer = await ZenzTokenizer()
 
         let alphaList: [Double] = [0.9]
         let inputText = "彼は"
 
         for mixAlpha in alphaList {
-            let generatedText = generateText(inputText: inputText, mixAlpha: mixAlpha, lmBase: lmBase, lmPerson: lmPerson)
+            let generatedText = generateText(inputText: inputText, mixAlpha: mixAlpha, lmBase: lmBase, lmPerson: lmPerson, tokenizer: tokenizer)
             XCTAssertFalse(generatedText.isEmpty, "Generated text should not be empty")
             print("Alpha \(mixAlpha): Generated text = \(generatedText)")
         }

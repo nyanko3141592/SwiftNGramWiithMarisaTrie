@@ -11,7 +11,12 @@ import SwiftyMarisa
 extension ZenzTokenizer {
     func encodeToStringKey(text: String) -> String {
         let encoded = self.encode(text: text)
-        let scalars = encoded.map { Unicode.Scalar(UInt32(exactly: $0)!)!}
+        let scalars = encoded.map { Unicode.Scalar(UInt32(exactly: $0 + 256)!)! }
+        let unicodeScalarView = String.UnicodeScalarView.init(scalars)
+        return String(unicodeScalarView)
+    }
+    func tokensToStringKey(tokens: some Sequence<Int>) -> String {
+        let scalars = tokens.map { Unicode.Scalar(UInt32(exactly: $0 + 256)!)! }
         let unicodeScalarView = String.UnicodeScalarView.init(scalars)
         return String(unicodeScalarView)
     }
@@ -21,6 +26,7 @@ final class SwiftTrainer {
     let n: Int
     let bos: String = "<s>"
     let eos: String = "</s>"
+    let tokenizer: ZenzTokenizer
 
     /// Python の defaultdict(int) 相当
     private var c_abc = [String: Int]()
@@ -31,22 +37,23 @@ final class SwiftTrainer {
     /// Python の defaultdict(set) 相当
     private var s_xbx = [String: Set<String>]()
 
-    init(n: Int) {
+    init(n: Int, tokenizer: ZenzTokenizer) {
         self.n = n
+        self.tokenizer = tokenizer
     }
 
     /// 単一 n-gram (abc など) をカウント
     /// Python の count_ngram に対応
-    private func countNGram(_ ngram: [String]) {
+    private func countNGram(_ ngram: some BidirectionalCollection<Int>) {
         // n-gram は最低 2 token 必要 (式的に aB, Bc, B, c のような分割を行う)
         guard ngram.count >= 2 else { return }
 
-        let aBc = ngram.joined(separator: "|")             // abc
-        let aB  = ngram.dropLast().joined(separator: "|")  // ab
-        let Bc  = ngram.dropFirst().joined(separator: "|") // bc
+        let aBc = self.tokenizer.tokensToStringKey(tokens: ngram)             // abc
+        let aB  = self.tokenizer.tokensToStringKey(tokens: ngram.dropLast())  // ab
+        let Bc  = self.tokenizer.tokensToStringKey(tokens: ngram.dropFirst()) // bc
         // 中央部分 B, 末尾単語 c
-        let B   = ngram.dropFirst().dropLast().joined(separator: "|")
-        let c   = ngram.last ?? ""
+        let B   = self.tokenizer.tokensToStringKey(tokens: ngram.dropFirst().dropLast())
+        let c   = self.tokenizer.tokensToStringKey(tokens: ngram.last.map { [$0] } ?? [])
 
         // C(abc)
         c_abc[aBc, default: 0] += 1
@@ -68,21 +75,21 @@ final class SwiftTrainer {
 
     /// 文から n-gram をカウント
     /// Python の count_sent_ngram に対応
-    private func countSentNGram(n: Int, sent: [String]) {
+    private func countSentNGram(n: Int, sent: [Int]) {
         // 先頭に (n-1) 個の <s>、末尾に </s> を追加
-        let padded = Array(repeating: bos, count: n - 1) + sent + [eos]
+        let padded = Array(repeating: self.tokenizer.startTokenID, count: n - 1) + sent + [self.tokenizer.endTokenID]
         // スライディングウィンドウで n 個ずつ
         for i in 0..<(padded.count - n + 1) {
-            let slice = Array(padded[i..<i+n])
-            countNGram(slice)
+            countNGram(padded[i..<i+n])
         }
     }
 
     /// 文全体をカウント (2-gram～N-gram までをまとめて処理)
     /// Python の count_sent に対応
-    func countSent(_ sentence: [String]) {
+    func countSent(_ sentence: String) {
+        let tokens = self.tokenizer.encode(text: sentence)
         for k in 2...n {
-            countSentNGram(n: k, sent: sentence)
+            countSentNGram(n: k, sent: tokens)
         }
     }
 
@@ -92,7 +99,7 @@ final class SwiftTrainer {
         // c_abx の key が "単一語" か判定
         // → "key.split('|').count == 1" 相当
         let vocabPairs = c_abx.filter { (k, _) in
-            k.components(separatedBy: "|").count == 1
+            k.unicodeScalars.count == 1
         }
 
         // 頻度でソート (降順)
@@ -106,7 +113,7 @@ final class SwiftTrainer {
         // 32bit 小端エンディアンに変換
         // ※ 頻度が 2^31 超える可能性があるなら要検討
         let val32 = UInt32(truncatingIfNeeded: value).littleEndian
-        var data = withUnsafeBytes(of: val32) { Data($0) }
+        let data = withUnsafeBytes(of: val32) { Data($0) }
         // Base64 エンコード
         let b64 = data.base64EncodedString()
         // ここではデリミタを "@" とする
@@ -202,9 +209,9 @@ public func trainNGramFromFile(
     filePath: String,
     n: Int,
     baseFilename: String
-) {
-    let trainer = SwiftTrainer(n: n)
-
+) async {
+    let tokenizer = await ZenzTokenizer()
+    let trainer = SwiftTrainer(n: n, tokenizer: tokenizer)
     // ファイルの内容を 1 行ずつ読み込み
     guard let fileHandle = FileHandle(forReadingAtPath: filePath) else {
         print("[Error] ファイルを開けませんでした: \(filePath)")
@@ -228,9 +235,8 @@ public func trainNGramFromFile(
         let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
         // Python 版は「文字単位」で取り出していたが、
         // 必要に応じて単語単位で分割するならこちらを修正
-        let tokens = Array(trimmed).map { String($0) }
-        if !tokens.isEmpty {
-            trainer.countSent(tokens)
+        if !trimmed.isEmpty {
+            trainer.countSent(trimmed)
         }
     }
 

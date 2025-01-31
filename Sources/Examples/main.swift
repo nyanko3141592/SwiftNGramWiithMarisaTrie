@@ -28,6 +28,7 @@ func inference(){
         print("[Error] Failed to load LM person")
         return
     }
+    let tokenizer = await ZenzTokenizer()
 
     let alphaList: [Double] = [0.1, 0.3, 0.5, 0.7, 0.9]
 
@@ -36,7 +37,7 @@ func inference(){
 
         // 時間計測
         let (generatedText, elapsedTime) = measureExecutionTime {
-            generateText(inputText: inputText, mixAlpha: mixAlpha, lmBase: lmBase, lmPerson: lmPerson, maxCount: 20)
+            generateText(inputText: inputText, mixAlpha: mixAlpha, lmBase: lmBase, lmPerson: lmPerson, tokenizer: tokenizer, maxCount: 20)
         }
 
         print("alpha = \(mixAlpha): \(generatedText)")
@@ -51,10 +52,10 @@ func runExample() {
     let ngramSize = 5
 
     print("=== Training Model ===")
-    trainNGramFromFile(filePath: trainFilePath, n: ngramSize, baseFilename: modelBase)
+    await trainNGramFromFile(filePath: trainFilePath, n: ngramSize, baseFilename: modelBase)
 
     print("=== Loading Model for Inference ===")
-    inference()
+    await inference()
 }   
 
-runExample()
+await runExample()
