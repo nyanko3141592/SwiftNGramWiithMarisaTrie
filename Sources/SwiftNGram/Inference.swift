@@ -87,9 +87,9 @@ public class LM {
     }
 }
 
-func generateText(inputText: String, mixAlpha: Double, lmBase: LM, lmPerson: LM) -> String {
+func generateText(inputText: String, mixAlpha: Double, lmBase: LM, lmPerson: LM, maxCount: Int = 100) -> String {
     var text = inputText
-    while text.count < 100 {
+    while text.count < maxCount {
         var maxProb = -Double.infinity
         var nextWord = ""
 
