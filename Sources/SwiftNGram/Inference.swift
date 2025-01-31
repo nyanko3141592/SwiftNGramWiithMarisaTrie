@@ -32,8 +32,8 @@ func getValue(from trie: Marisa, key: String) -> UInt32? {
 
 /// Kneser-Ney 言語モデル
 public class LM {
-    let n: Int
-    let eos: String = "</s>"
+    public let n: Int
+    public let eos: String = "</s>"
     let d: Double
 
     let c_abc = Marisa()
