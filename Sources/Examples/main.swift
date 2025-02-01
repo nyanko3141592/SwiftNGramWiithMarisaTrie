@@ -17,17 +17,12 @@ func measureExecutionTime(block: () -> String) -> (String, Double) {
     return (result, milliTime)
 }
 
-func inference(){
+func inference() async {
     let baseFilename = "/Users/takahashinaoki/Dev/projects/mitou/SwiftNGram/marisa/lm"
     print("Loading LM base: \(baseFilename)")
-    guard let lmBase = LM(baseFilename: baseFilename, n: 5, d: 0.75) else {
-        print("[Error] Failed to load LM base")
-        return
-    }
-    guard let lmPerson = LM(baseFilename: baseFilename, n: 5, d: 0.75) else {
-        print("[Error] Failed to load LM person")
-        return
-    }
+    let tokenizer = await ZenzTokenizer()
+    let lmBase = LM(baseFilename: baseFilename, n: 5, d: 0.75, tokenizer: tokenizer)
+    let lmPerson = LM(baseFilename: baseFilename, n: 5, d: 0.75, tokenizer: tokenizer)
 
     let alphaList: [Double] = [0.1, 0.3, 0.5, 0.7, 0.9]
 
@@ -36,7 +31,7 @@ func inference(){
 
         // 時間計測
         let (generatedText, elapsedTime) = measureExecutionTime {
-            generateText(inputText: inputText, mixAlpha: mixAlpha, lmBase: lmBase, lmPerson: lmPerson, maxCount: 20)
+            generateText(inputText: inputText, mixAlpha: mixAlpha, lmBase: lmBase, lmPerson: lmPerson, tokenizer: tokenizer, maxCount: 20)
         }
 
         print("alpha = \(mixAlpha): \(generatedText)")
@@ -45,16 +40,16 @@ func inference(){
 }
 
 
-func runExample() {
-    let trainFilePath = "/Users/takahashinaoki/Dev/projects/mitou/SwiftNGram/train.txt"
+func runExample() async {
+    let trainFilePath = "/Users/miwa/Desktop/SwiftNGramWiithMarisaTrie/train.txt"
     let modelBase = "lm"
     let ngramSize = 5
 
     print("=== Training Model ===")
-    trainNGramFromFile(filePath: trainFilePath, n: ngramSize, baseFilename: modelBase)
+    await trainNGramFromFile(filePath: trainFilePath, n: ngramSize, baseFilename: modelBase)
 
     print("=== Loading Model for Inference ===")
-    inference()
+    await inference()
 }   
 
-runExample()
+await runExample()

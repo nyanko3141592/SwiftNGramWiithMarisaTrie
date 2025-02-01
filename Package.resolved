@@ -1,13 +1,49 @@
 {
-  "originHash" : "b31d2778a76b5b8b903895fd6522d5b87046d00881469aeaf8d5192a1d76839d",
+  "originHash" : "1cf500b4a4e9b769d348ce5ac6e07fb19f6e0eaa2c4265bbe28e020855de2b9f",
   "pins" : [
+    {
+      "identity" : "jinja",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/johnmai-dev/Jinja",
+      "state" : {
+        "revision" : "bbddb92fc51ae420b87300298370fd1dfc308f73",
+        "version" : "1.1.1"
+      }
+    },
+    {
+      "identity" : "swift-argument-parser",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/apple/swift-argument-parser.git",
+      "state" : {
+        "revision" : "0fbc8848e389af3bb55c182bc19ca9d5dc2f255b",
+        "version" : "1.4.0"
+      }
+    },
+    {
+      "identity" : "swift-collections",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/apple/swift-collections.git",
+      "state" : {
+        "revision" : "671108c96644956dddcd89dd59c203dcdb36cec7",
+        "version" : "1.1.4"
+      }
+    },
+    {
+      "identity" : "swift-transformers",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/huggingface/swift-transformers",
+      "state" : {
+        "revision" : "55710ddfb1ae804b4b7ce973be75cf2e41272185",
+        "version" : "0.1.17"
+      }
+    },
     {
       "identity" : "swiftymarisa",
       "kind" : "remoteSourceControl",
-      "location" : "https://github.com/vovasty/SwiftyMarisa/",
+      "location" : "https://github.com/ensan-hcl/SwiftyMarisa",
       "state" : {
-        "branch" : "master",
-        "revision" : "a064be8398e54213d0cca5446a07bb9cfad690f5"
+        "branch" : "feat/swift_cpp_interop",
+        "revision" : "6e145aef5583aac96dd7ff8f9fbb9944d893128e"
       }
     }
   ],
