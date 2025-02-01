@@ -43,11 +43,11 @@ public struct LM {
         return nil
     }
 
-    /// Trie から Key に対応する Value を取得する関数
-    private func bulkGetValue(from trie: Marisa, prefix: [Int]) -> [Int: UInt32] {
+    /// 「prefix + 次の1文字」を扱うケースでbulk処理で高速化する
+    private func bulkGetValue(from trie: Marisa, prefix: [Int]) -> [UInt32] {
         let int8s = SwiftTrainer.encodeKey(key: prefix) + [SwiftTrainer.predictiveDelimiter]  // 予測用のdelimiter
         let results = trie.search(int8s, .predictive)
-        var dict = [Int: UInt32]()
+        var dict = [UInt32](repeating: 0, count: self.tokenizer.vocabSize)
         for result in results {
             var suffix = result.dropFirst(int8s.count)
             let v1 = suffix.removeFirst()
@@ -102,7 +102,7 @@ public struct LM {
         u_abx_ab: UInt32,
         c_abc_abc: UInt32,
         plf_items: [(
-            u_xbc_abc_ab: [Int: UInt32],
+            u_xbc_abc_ab: [UInt32],
             u_xbx_ab: UInt32?,
             r_xbx_ab: UInt32
         )]
@@ -122,7 +122,7 @@ public struct LM {
             // 第1項
             var alpha = 0.0
             if let u_xbx_ab {
-                let u_xbc_abc = u_xbc_abc_ab[nextWord, default: 0]
+                let u_xbc_abc = u_xbc_abc_ab[nextWord]
                 alpha = (Double(u_xbc_abc) - self.d) / Double(u_xbx_ab)
             }
             // 第2項
@@ -145,7 +145,7 @@ public struct LM {
         let c_abx_ab  = self.getValue(from: c_abx, key: ab) ?? 1
         let u_abx_ab  = self.getValue(from: u_abx, key: ab) ?? 0
         let c_abc_abc = self.bulkGetValue(from: self.c_abc, prefix: ab)
-        var u_xbc_abc: [(u_xbc_abc_ab: [Int: UInt32], u_xbx_ab: UInt32?, r_xbx_ab: UInt32)] = []
+        var u_xbc_abc: [(u_xbc_abc_ab: [UInt32], u_xbx_ab: UInt32?, r_xbx_ab: UInt32)] = []
         for i in 1 ..< ngram.count {
             let ab = Array(ngram.dropFirst(i))
             let u_xbx_ab = self.getValue(from: self.u_xbx, key: ab)
@@ -156,7 +156,7 @@ public struct LM {
         var results = [Double]()
         results.reserveCapacity(tokenizer.vocabSize)
         for w in 0 ..< tokenizer.vocabSize {
-            results.append(self.predict(ab, nextWord: w, c_abx_ab: c_abx_ab, u_abx_ab: u_abx_ab, c_abc_abc: c_abc_abc[w, default: 0], plf_items: u_xbc_abc))
+            results.append(self.predict(ab, nextWord: w, c_abx_ab: c_abx_ab, u_abx_ab: u_abx_ab, c_abc_abc: c_abc_abc[w], plf_items: u_xbc_abc))
         }
         return results
     }
