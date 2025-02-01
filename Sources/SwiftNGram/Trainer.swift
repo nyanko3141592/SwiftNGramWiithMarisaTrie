@@ -212,46 +212,54 @@ final class SwiftTrainer {
 
 }
 
-/// 実行例として、テキストファイルを読み込んで n-gram をカウントし、
-/// Marisa-Trie を保存する関数
-public func trainNGramFromFile(
-    filePath: String,
-    n: Int,
-    baseFilename: String
-) async {
-    let tokenizer = await ZenzTokenizer()
-    let trainer = SwiftTrainer(n: n, tokenizer: tokenizer)
-    // ファイルの内容を 1 行ずつ読み込み
+/// ファイルを読み込み、行ごとの文字列配列を返す関数
+public func readLinesFromFile(filePath: String) -> [String]? {
     guard let fileHandle = FileHandle(forReadingAtPath: filePath) else {
         print("[Error] ファイルを開けませんでした: \(filePath)")
-        return
+        return nil
     }
     defer {
         try? fileHandle.close()
     }
 
-    // UTF-8 で行単位に読み込む
+    // UTF-8 でデータを読み込む
     let data = fileHandle.readDataToEndOfFile()
     guard let text = String(data: data, encoding: .utf8) else {
         print("[Error] UTF-8 で読み込めませんでした: \(filePath)")
-        return
+        return nil
     }
 
-    let lines = text.components(separatedBy: .newlines)
+    // 改行で分割し、空行を除去
+    return text.components(separatedBy: .newlines).filter { !$0.isEmpty }
+}
 
-    // 各行に対して n-gram カウント
+/// 文章の配列から n-gram を学習し、Marisa-Trie を保存する関数
+public func trainNGram(
+    lines: [String],
+    n: Int,
+    baseFilename: String
+) async {
+    let tokenizer = await ZenzTokenizer()
+    let trainer = SwiftTrainer(n: n, tokenizer: tokenizer)
+
     for (i, line) in lines.enumerated() {
         if i % 100 == 0 {
             print(i, "/", lines.count)
         }
         let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
-        // Python 版は「文字単位」で取り出していたが、
-        // 必要に応じて単語単位で分割するならこちらを修正
         if !trimmed.isEmpty {
             trainer.countSent(trimmed)
         }
     }
 
-    // 最後に Trie ファイルを保存
+    // Trie ファイルを保存
     trainer.saveToMarisaTrie(baseFilename: baseFilename)
+}
+
+/// 実行例: ファイルを読み込み、n-gram を学習して保存
+public func trainNGramFromFile(filePath: String, n: Int, baseFilename: String) async {
+    guard let lines = readLinesFromFile(filePath: filePath) else {
+        return
+    }
+    await trainNGram(lines: lines, n: n, baseFilename: baseFilename)
 }
