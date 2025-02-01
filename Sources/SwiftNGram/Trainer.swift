@@ -29,13 +29,13 @@ final class SwiftTrainer {
     let tokenizer: ZenzTokenizer
 
     /// Python の defaultdict(int) 相当
-    private var c_abc = [String: Int]()
-    private var c_abx = [String: Int]()
-    private var u_abx = [String: Int]()
-    private var u_xbc = [String: Int]()
-    private var u_xbx = [String: Int]()
+    private var c_abc = [[Int]: Int]()
+    private var c_abx = [[Int]: Int]()
+    private var u_abx = [[Int]: Int]()
+    private var u_xbc = [[Int]: Int]()
+    private var u_xbx = [[Int]: Int]()
     /// Python の defaultdict(set) 相当
-    private var s_xbx = [String: Set<String>]()
+    private var s_xbx = [[Int]: Set<[Int]>]()
 
     init(n: Int, tokenizer: ZenzTokenizer) {
         self.n = n
@@ -48,12 +48,12 @@ final class SwiftTrainer {
         // n-gram は最低 2 token 必要 (式的に aB, Bc, B, c のような分割を行う)
         guard ngram.count >= 2 else { return }
 
-        let aBc = self.tokenizer.tokensToStringKey(tokens: ngram)             // abc
-        let aB  = self.tokenizer.tokensToStringKey(tokens: ngram.dropLast())  // ab
-        let Bc  = self.tokenizer.tokensToStringKey(tokens: ngram.dropFirst()) // bc
+        let aBc = Array(ngram)             // abc
+        let aB  = Array(ngram.dropLast())  // ab
+        let Bc  = Array(ngram.dropFirst()) // bc
         // 中央部分 B, 末尾単語 c
-        let B   = self.tokenizer.tokensToStringKey(tokens: ngram.dropFirst().dropLast())
-        let c   = self.tokenizer.tokensToStringKey(tokens: ngram.last.map { [$0] } ?? [])
+        let B   = Array(ngram.dropFirst().dropLast())
+        let c   = ngram.last.map { [$0] } ?? []
 
         // C(abc)
         c_abc[aBc, default: 0] += 1
@@ -95,11 +95,11 @@ final class SwiftTrainer {
 
     /// Python の make_vocab 相当
     /// c_abx のうち、トークン (単一語) のみを取り出して頻度順にソート
-    private func makeVocab() -> [String] {
+    private func makeVocab() -> [[Int]] {
         // c_abx の key が "単一語" か判定
         // → "key.split('|').count == 1" 相当
         let vocabPairs = c_abx.filter { (k, _) in
-            k.unicodeScalars.count == 1
+            k.count == 1
         }
 
         // 頻度でソート (降順)
@@ -107,23 +107,34 @@ final class SwiftTrainer {
         return sorted.map { $0.key }
     }
 
+
+    static func encodeKey(key: [Int]) -> [Int8] {
+        var int8s: [Int8] = []
+        int8s.reserveCapacity(key.count * 2 + 1)
+        for token in key {
+            let (q, r) = token.quotientAndRemainder(dividingBy: Int(Int8.max - 1))
+            int8s.append(Int8(q + 1))
+            int8s.append(Int8(r + 1))
+        }
+        return int8s
+    }
     /// 文字列 + 4バイト整数を Base64 にエンコードした文字列を作る
     /// Python の encode_key_value(key, value) 相当
-    private func encodeKeyValue(key: String, value: Int) -> String {
-        // 32bit 小端エンディアンに変換
+    private func encodeKeyValue(key: [Int], value: Int) -> [Int8] {
+        let key = Self.encodeKey(key: key)
+        // keyは[Int16]に縮めた上で[Int8]に変換。Int16.minをデリミタにする
+        let delimiter = [Int8.min].withUnsafeBytes {Array($0.bindMemory(to: Int8.self))}
         // ※ 頻度が 2^31 超える可能性があるなら要検討
         let val32 = UInt32(truncatingIfNeeded: value).littleEndian
-        let data = withUnsafeBytes(of: val32) { Data($0) }
-        // Base64 エンコード
-        let b64 = data.base64EncodedString()
-        // ここではデリミタを "@" とする
-        return "\(key)@\(b64)"
+//        let data = withUnsafeBytes(of: val32) { Array($0.bindMemory(to: Int8.self)) }
+//        assert(data.count == 4, "data count must be 4 instead of \(data.count) for value \(val32)")
+        return key + delimiter + withUnsafeBytes(of: val32) { Data($0) }.base64EncodedData().map { Int8($0) }
     }
 
     /// 指定した [String: Int] を Trie に登録して保存
-    private func buildAndSaveTrie(from dict: [String: Int], to path: String) {
-        let encodedStrings: [String] = dict.map { (k, v) in
-            encodeKeyValue(key: k, value: v)
+    private func buildAndSaveTrie(from dict: [[Int]: Int], to path: String) {
+        let encodedStrings: [[Int8]] = dict.map { (k, v) in
+            return encodeKeyValue(key: k, value: v)
         }
 
         let trie = Marisa()
@@ -180,7 +191,7 @@ final class SwiftTrainer {
         buildAndSaveTrie(from: u_xbx, to: paths[4])
 
         // s_xbx は key: String, val: Set<String> なので、val は要素数のみ登録する
-        let r_xbx: [String: Int] = s_xbx.mapValues { $0.count }
+        let r_xbx: [[Int]: Int] = s_xbx.mapValues { $0.count }
         buildAndSaveTrie(from: r_xbx, to: paths[5])
 
         // vocab は key そのものを登録（値は持たない）
@@ -188,7 +199,7 @@ final class SwiftTrainer {
         let vocabTrie = Marisa()
         vocabTrie.build { builder in
             for w in vocab {
-                builder(w)
+                builder(SwiftTrainer.encodeKey(key: w))
             }
         }
         vocabTrie.save(paths[6])
@@ -231,7 +242,10 @@ public func trainNGramFromFile(
     let lines = text.components(separatedBy: .newlines)
 
     // 各行に対して n-gram カウント
-    for line in lines {
+    for (i, line) in lines.enumerated() {
+        if i % 100 == 0 {
+            print(i, "/", lines.count)
+        }
         let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
         // Python 版は「文字単位」で取り出していたが、
         // 必要に応じて単語単位で分割するならこちらを修正

@@ -1,5 +1,5 @@
 {
-  "originHash" : "cccd701e8e351a716a73670f18629a6f1a4d38220ae1b1ca330c825118827fc2",
+  "originHash" : "1cf500b4a4e9b769d348ce5ac6e07fb19f6e0eaa2c4265bbe28e020855de2b9f",
   "pins" : [
     {
       "identity" : "jinja",
@@ -33,17 +33,17 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/huggingface/swift-transformers",
       "state" : {
-        "revision" : "ff8174964ba9ea2519ee1c1a09adefdfa22ea6f1",
-        "version" : "0.1.16"
+        "revision" : "55710ddfb1ae804b4b7ce973be75cf2e41272185",
+        "version" : "0.1.17"
       }
     },
     {
       "identity" : "swiftymarisa",
       "kind" : "remoteSourceControl",
-      "location" : "https://github.com/vovasty/SwiftyMarisa/",
+      "location" : "https://github.com/ensan-hcl/SwiftyMarisa",
       "state" : {
-        "branch" : "master",
-        "revision" : "a064be8398e54213d0cca5446a07bb9cfad690f5"
+        "branch" : "feat/swift_cpp_interop",
+        "revision" : "6e145aef5583aac96dd7ff8f9fbb9944d893128e"
       }
     }
   ],
