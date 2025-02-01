@@ -21,14 +21,8 @@ func inference() async {
     let baseFilename = "/Users/takahashinaoki/Dev/projects/mitou/SwiftNGram/marisa/lm"
     print("Loading LM base: \(baseFilename)")
     let tokenizer = await ZenzTokenizer()
-    guard let lmBase = LM(baseFilename: baseFilename, n: 5, d: 0.75, tokenizer: tokenizer) else {
-        print("[Error] Failed to load LM base")
-        return
-    }
-    guard let lmPerson = LM(baseFilename: baseFilename, n: 5, d: 0.75, tokenizer: tokenizer) else {
-        print("[Error] Failed to load LM person")
-        return
-    }
+    let lmBase = LM(baseFilename: baseFilename, n: 5, d: 0.75, tokenizer: tokenizer)
+    let lmPerson = LM(baseFilename: baseFilename, n: 5, d: 0.75, tokenizer: tokenizer)
 
     let alphaList: [Double] = [0.1, 0.3, 0.5, 0.7, 0.9]
 

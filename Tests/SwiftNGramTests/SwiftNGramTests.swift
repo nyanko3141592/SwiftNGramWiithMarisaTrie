@@ -7,14 +7,8 @@ class SwiftNGramTests: XCTestCase {
         let tokenizer = await ZenzTokenizer()
         let baseFilename = "/Users/miwa/Library/Developer/Xcode/DerivedData/SwiftNGramWiithMarisaTrie-hkjbiyuowxntzafhkszomslvnsmq/Build/Products/Debug/marisa/lm"
 
-        guard let lmBase = LM(baseFilename: baseFilename, n: 5, d: 0.75, tokenizer: tokenizer) else {
-            XCTFail("[Error] Failed to load LM base")
-            return
-        }
-        guard let lmPerson = LM(baseFilename: baseFilename, n: 5, d: 0.75, tokenizer: tokenizer) else {
-            XCTFail("[Error] Failed to load LM person")
-            return
-        }
+        let lmBase = LM(baseFilename: baseFilename, n: 5, d: 0.75, tokenizer: tokenizer)
+        let lmPerson = LM(baseFilename: baseFilename, n: 5, d: 0.75, tokenizer: tokenizer)
 
         let alphaList: [Double] = [0.9]
         let inputText = "ザーサイと"
@@ -30,19 +24,13 @@ class SwiftNGramTests: XCTestCase {
         let baseFilename = "/Users/miwa/Library/Developer/Xcode/DerivedData/SwiftNGramWiithMarisaTrie-hkjbiyuowxntzafhkszomslvnsmq/Build/Products/Debug/marisa/lm"
 
         let tokenizer = await ZenzTokenizer()
-        guard let lmBase = LM(baseFilename: baseFilename, n: 5, d: 0.75, tokenizer: tokenizer) else {
-            XCTFail("[Error] Failed to load LM base")
-            return
-        }
-        guard let lmPerson = LM(baseFilename: baseFilename, n: 5, d: 0.75, tokenizer: tokenizer) else {
-            XCTFail("[Error] Failed to load LM person")
-            return
-        }
+        let lmBase = LM(baseFilename: baseFilename, n: 5, d: 0.75, tokenizer: tokenizer)
+        let lmPerson = LM(baseFilename: baseFilename, n: 5, d: 0.75, tokenizer: tokenizer)
 
         let alphaList: [Double] = [0.9]
         let inputText = "ザーサイと"
 
-        for _ in 0 ..< 100 {
+        for _ in 0 ..< 1000 {
             for mixAlpha in alphaList {
                 let generatedText = generateText(inputText: inputText, mixAlpha: mixAlpha, lmBase: lmBase, lmPerson: lmPerson, tokenizer: tokenizer, maxCount: 6)
                 XCTAssertFalse(generatedText.isEmpty, "Generated text should not be empty")

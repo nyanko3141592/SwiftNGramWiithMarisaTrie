@@ -65,7 +65,7 @@ public struct LM {
         return dict
     }
 
-    public init?(baseFilename: String, n: Int, d: Double, tokenizer: ZenzTokenizer) {
+    public init(baseFilename: String, n: Int, d: Double, tokenizer: ZenzTokenizer) {
         self.tokenizer = tokenizer
         // ストアドプロパティを一度に全て初期化（“仮”の値で OK）
         self.n = n
@@ -91,7 +91,7 @@ public struct LM {
 
         // 全てのストアドプロパティに仮の値が入ったので、ここから初めて self のメソッドを呼べる
         // totalTokens の最終値をセット
-        self.totalTokens = self.getValue(from: c_abx, key: []) ?? 1// self.getValueC_abx([]) ?? 1
+        self.totalTokens = self.getValue(from: c_abx, key: []) ?? 1
     }
 
     /// Kneser-Ney の確率を求める
