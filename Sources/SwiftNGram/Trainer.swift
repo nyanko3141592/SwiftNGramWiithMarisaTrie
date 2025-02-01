@@ -107,11 +107,14 @@ final class SwiftTrainer {
         return int8s
     }
     static func encodeValue(value: Int) -> [Int8] {
-        // ※ 頻度が 2^31 超える可能性があるなら要検討
-        let val32 = UInt32(truncatingIfNeeded: value).littleEndian
-        return withUnsafeBytes(of: val32) { Data($0) }.base64EncodedData().map { Int8($0) }
+        let div = Int(Int8.max - 1)
+        let (q1, r1) = value.quotientAndRemainder(dividingBy: div)  // value = q1 * div + r1
+        let (q2, r2) = q1.quotientAndRemainder(dividingBy: div)  // value = (q2 * div + r2) * div + r1 = q2 d² + r2 d + r1
+        let (q3, r3) = q2.quotientAndRemainder(dividingBy: div)  // value = q3 d³ + r3 d² + r2 d + r1
+        let (q4, r4) = q3.quotientAndRemainder(dividingBy: div)  // value = q4 d⁴ + r4 d³ + r3 d² + r2 d + r1
+        return [Int8(q4 + 1), Int8(r4 + 1), Int8(r3 + 1), Int8(r2 + 1), Int8(r1 + 1)]
     }
-    
+
     static func decodeKey(v1: Int8, v2: Int8) -> Int {
         return Int(v1-1) * Int(Int8.max-1) + Int(v2-1)
     }
@@ -135,9 +138,6 @@ final class SwiftTrainer {
         let trie = Marisa()
         trie.build { builder in
             for entry in encodedStrings {
-                if entry.last != 61 {
-                    print(entry)
-                }
                 builder(entry)
             }
         }

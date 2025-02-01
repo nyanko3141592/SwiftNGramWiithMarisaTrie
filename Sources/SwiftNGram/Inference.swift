@@ -3,17 +3,14 @@ import SwiftyMarisa
 
 /// Base64 でエンコードされた Key-Value をデコードする関数
 private func decodeKeyValue(_ suffix: some Collection<Int8>) -> UInt32? {
-    // 最初の8個が値をエンコードしている
-    let base64value = String(decoding: suffix.prefix(8).map { UInt8($0)}, as: UTF8.self)
-    guard let valueData = Data(base64Encoded: base64value) else {
-        return nil
+    // 最初の5個が値をエンコードしている
+    let d = Int(Int8.max - 1)
+    var value = 0
+    for item in suffix.prefix(5) {
+        value += Int(item) - 1
+        value *= d
     }
-    guard valueData.count == 4 else {
-        return nil
-    }
-    return valueData.withUnsafeBytes { rawBuffer in
-        rawBuffer.load(as: UInt32.self).littleEndian
-    }
+    return UInt32(value)
 }
 
 /// Kneser-Ney 言語モデル
