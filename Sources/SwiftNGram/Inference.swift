@@ -159,39 +159,71 @@ public class LM {
     }
 
     /// Kneser-Ney の確率を求める
-    public func predict(_ ngram: some BidirectionalCollection<Int>, nextWord: Int) -> Double {
+    public func predict(_ ab: some BidirectionalCollection<Int>, nextWord: Int, c_abx_ab: UInt32?, u_abx_ab: UInt32?) -> Double {
         // キャッシュにある場合は即返す
         // ngram = [a, b, c]
         // abc = "a|b|c"
         // ab  = "a|b"
-        let ab = Array(ngram)
+        let ab = Array(ab)
         let c = [nextWord]
         let abc = ab + c
         if let cached = predictCache[abc] {
             return cached
         }
 
-        // ユニグラムの場合（再帰の終了条件）
-        if ngram.count == 0 {
-            let c_abc_c = getValueC_abc(c) ?? 0
-            let prob = Double(c_abc_c) / Double(totalTokens)
-            predictCache[abc] = prob
-            return prob
-        }
-
         let c_abc_abc = getValueC_abc(abc) ?? 0
-        let c_abx_ab  = getValueC_abx(ab) ?? 1
-        let u_abx_ab  = getValueU_abx(ab) ?? 0
+        let c_abx_ab  = c_abx_ab ?? getValueC_abx(ab) ?? 1
+        let u_abx_ab  = u_abx_ab ?? getValueU_abx(ab) ?? 0
 
         // (count(abc) - d) / count(ab)
         let alpha = (Double(c_abc_abc) - d) / Double(c_abx_ab)
         // d * unique(ab) / count(ab)
         let gamma = d * Double(u_abx_ab) / Double(c_abx_ab)
 
-        // 再帰呼び出し
-        let prob = alpha + gamma * self.predict(ngram.dropFirst(), nextWord: nextWord)
+        let plf: Double
+        do {
+            let prefix = ab.dropFirst()
+            var value = 0.0
+            var coef = 1.0
+            for i in 0 ..< prefix.count {
+                let ab = Array(prefix.dropFirst(i))
+
+                let abc = ab + c
+                let u_xbx_ab = self.getValueU_xbx(ab)
+                // 第1項
+                var alpha = 0.0
+                if let u_xbx_ab, let u_xbc_abc = self.getValueU_xbc(abc) {
+                    alpha = (Double(u_xbc_abc) - self.d) / Double(u_xbx_ab)
+                }
+                // 第2項
+                var gamma = 1.0
+                if let u_xbx_ab, let r_xbx_ab = self.getValueR_xbx(ab) {
+                    gamma = self.d * Double(r_xbx_ab) / Double(u_xbx_ab)
+                }
+                value += alpha * coef
+                coef *= gamma
+            }
+            value += coef / Double(self.tokenizer.vocabSize)
+            plf = value
+        }
+
+        let prob = alpha + gamma * plf
         predictCache[abc] = prob
         return prob
+    }
+
+    /// Kneser-Ney の確率を求める
+    public func bulkPredict(_ ngram: some BidirectionalCollection<Int>) -> [Double] {
+        let ab = Array(ngram)
+        let c_abx_ab  = getValueC_abx(ab) ?? 1
+        let u_abx_ab  = getValueU_abx(ab) ?? 0
+        // 全候補を探索
+        var results = [Double]()
+        results.reserveCapacity(tokenizer.vocabSize)
+        for w in 0 ..< tokenizer.vocabSize {
+            results.append(self.predict(ab, nextWord: w, c_abx_ab: c_abx_ab, u_abx_ab: u_abx_ab))
+        }
+        return results
     }
 }
 
@@ -215,9 +247,9 @@ public func generateText(
         var nextWord = -1
 
         // 全候補を探索
-        for w in 0 ..< tokenizer.vocabSize {
-            let pBase = lmBase.predict(suffix, nextWord: w)
-            let pPerson = lmPerson.predict(suffix, nextWord: w)
+        let pBases = lmBase.bulkPredict(suffix)
+        let pPersons = lmPerson.bulkPredict(suffix)
+        for (w, (pBase, pPerson)) in zip(pBases, pPersons).enumerated() {
             // どちらかが 0 ならスキップ
             if pBase == 0.0 || pPerson == 0.0 {
                 continue
