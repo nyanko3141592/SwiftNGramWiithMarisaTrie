@@ -8,21 +8,9 @@
 import Foundation
 import SwiftyMarisa
 
-extension ZenzTokenizer {
-    func encodeToStringKey(text: String) -> String {
-        let encoded = self.encode(text: text)
-        let scalars = encoded.map { Unicode.Scalar(UInt32(exactly: $0 + 256)!)! }
-        let unicodeScalarView = String.UnicodeScalarView.init(scalars)
-        return String(unicodeScalarView)
-    }
-    func tokensToStringKey(tokens: some Sequence<Int>) -> String {
-        let scalars = tokens.map { Unicode.Scalar(UInt32(exactly: $0 + 256)!)! }
-        let unicodeScalarView = String.UnicodeScalarView.init(scalars)
-        return String(unicodeScalarView)
-    }
-}
-
 final class SwiftTrainer {
+    static let keyValueDelimiter: Int8 = Int8.min
+    static let predictiveDelimiter: Int8 = Int8.min + 1
     let n: Int
     let bos: String = "<s>"
     let eos: String = "</s>"
@@ -118,28 +106,38 @@ final class SwiftTrainer {
         }
         return int8s
     }
+    static func encodeValue(value: Int) -> [Int8] {
+        // ※ 頻度が 2^31 超える可能性があるなら要検討
+        let val32 = UInt32(truncatingIfNeeded: value).littleEndian
+        return withUnsafeBytes(of: val32) { Data($0) }.base64EncodedData().map { Int8($0) }
+    }
+    
+    static func decodeKey(v1: Int8, v2: Int8) -> Int {
+        return Int(v1-1) * Int(Int8.max-1) + Int(v2-1)
+    }
     /// 文字列 + 4バイト整数を Base64 にエンコードした文字列を作る
     /// Python の encode_key_value(key, value) 相当
     private func encodeKeyValue(key: [Int], value: Int) -> [Int8] {
         let key = Self.encodeKey(key: key)
-        // keyは[Int16]に縮めた上で[Int8]に変換。Int16.minをデリミタにする
-        let delimiter = [Int8.min].withUnsafeBytes {Array($0.bindMemory(to: Int8.self))}
-        // ※ 頻度が 2^31 超える可能性があるなら要検討
-        let val32 = UInt32(truncatingIfNeeded: value).littleEndian
-//        let data = withUnsafeBytes(of: val32) { Array($0.bindMemory(to: Int8.self)) }
-//        assert(data.count == 4, "data count must be 4 instead of \(data.count) for value \(val32)")
-        return key + delimiter + withUnsafeBytes(of: val32) { Data($0) }.base64EncodedData().map { Int8($0) }
+        return key + [Self.keyValueDelimiter] + Self.encodeValue(value: value)
     }
 
-    /// 指定した [String: Int] を Trie に登録して保存
-    private func buildAndSaveTrie(from dict: [[Int]: Int], to path: String) {
-        let encodedStrings: [[Int8]] = dict.map { (k, v) in
-            return encodeKeyValue(key: k, value: v)
-        }
+    private func encodeKeyValueForBulkGet(key: [Int], value: Int) -> [Int8] {
+        var key = Self.encodeKey(key: key)
+        key.insert(Self.predictiveDelimiter, at: key.count - 2)  // 1トークンはInt8が2つで表せる。最後のトークンの直前にデリミタ`Int8.min + 1`を入れ、これを用いて予測検索をする
+        return key + [Self.keyValueDelimiter] + Self.encodeValue(value: value)
+    }
 
+    /// 指定した [[Int]: Int] を Trie に登録して保存
+    private func buildAndSaveTrie(from dict: [[Int]: Int], to path: String, forBulkGet: Bool = false) {
+        let encode = forBulkGet ? encodeKeyValueForBulkGet : encodeKeyValue
+        let encodedStrings: [[Int8]] = dict.map(encode)
         let trie = Marisa()
         trie.build { builder in
             for entry in encodedStrings {
+                if entry.last != 61 {
+                    print(entry)
+                }
                 builder(entry)
             }
         }
@@ -180,13 +178,13 @@ final class SwiftTrainer {
         }
 
         // c_abc
-        buildAndSaveTrie(from: c_abc, to: paths[0])
+        buildAndSaveTrie(from: c_abc, to: paths[0], forBulkGet: true)
         // c_abx
         buildAndSaveTrie(from: c_abx, to: paths[1])
         // u_abx
         buildAndSaveTrie(from: u_abx, to: paths[2])
         // u_xbc
-        buildAndSaveTrie(from: u_xbc, to: paths[3])
+        buildAndSaveTrie(from: u_xbc, to: paths[3], forBulkGet: true)
         // u_xbx
         buildAndSaveTrie(from: u_xbx, to: paths[4])
 

@@ -2,10 +2,9 @@ import Foundation
 import SwiftyMarisa
 
 /// Base64 でエンコードされた Key-Value をデコードする関数
-private func decodeKeyValue(_ foundString: [Int8], key: [Int8]) -> UInt32? {
-    let suffix = Array(foundString.dropFirst(key.count))
-//    print(foundString, key, suffix)
-    let base64value = String(decoding: suffix.map { UInt8($0)}, as: UTF8.self)
+private func decodeKeyValue(_ suffix: some Collection<Int8>) -> UInt32? {
+    // 最初の8個が値をエンコードしている
+    let base64value = String(decoding: suffix.prefix(8).map { UInt8($0)}, as: UTF8.self)
     guard let valueData = Data(base64Encoded: base64value) else {
         return nil
     }
@@ -16,17 +15,6 @@ private func decodeKeyValue(_ foundString: [Int8], key: [Int8]) -> UInt32? {
         rawBuffer.load(as: UInt32.self).littleEndian
     }
 }
-
-///// Base64 でエンコードされた Key-Value をデコードする関数
-//private func decodeKeyValue(_ foundString: [Int8], key: [Int8]) -> UInt32? {
-//    let suffix = Array(foundString.dropFirst(key.count))
-//    guard suffix.count == 4 else {
-//        return nil
-//    }
-//    return suffix.withUnsafeBytes { rawBuffer in
-//        rawBuffer.load(as: UInt32.self).littleEndian
-//    }
-//}
 
 /// Kneser-Ney 言語モデル
 public class LM {
@@ -42,29 +30,42 @@ public class LM {
     let r_xbx: Marisa
     let vocabTrie: Marisa
 
-    // キャッシュ
-    private var predictCache: [[Int]: Double]
-    private var c_abcCache: [[Int]: UInt32?]
-    private var c_abxCache: [[Int]: UInt32?]
-    private var u_abxCache: [[Int]: UInt32?]
-    private var u_xbcCache: [[Int]: UInt32?]
-    private var u_xbxCache: [[Int]: UInt32?]
-    private var r_xbxCache: [[Int]: UInt32?]
-
     // 総トークン数 (ユニグラム計算用)
     private var totalTokens: UInt32
 
     private var tokenizer: ZenzTokenizer
     /// Trie から Key に対応する Value を取得する関数
     private func getValue(from trie: Marisa, key: [Int]) -> UInt32? {
-        let int8s = SwiftTrainer.encodeKey(key: key) + [Int8.min] // delimiter ( as it is negative, it must not appear in key part)
+        let int8s = SwiftTrainer.encodeKey(key: key) + [SwiftTrainer.keyValueDelimiter] // delimiter ( as it is negative, it must not appear in key part)
         let results = trie.search(int8s, .predictive)
         for result in results {
-            if let decoded = decodeKeyValue(result, key: int8s) {
+            if let decoded = decodeKeyValue(result.dropFirst(int8s.count)) {
                 return decoded
             }
         }
         return nil
+    }
+
+    /// Trie から Key に対応する Value を取得する関数
+    private func bulkGetValue(from trie: Marisa, prefix: [Int]) -> [Int: UInt32] {
+        let int8s = SwiftTrainer.encodeKey(key: prefix) + [SwiftTrainer.predictiveDelimiter]  // 予測用のdelimiter
+        let results = trie.search(int8s, .predictive)
+        var dict = [Int: UInt32]()
+        for result in results {
+            var suffix = result.dropFirst(int8s.count)
+            let v1 = suffix.removeFirst()
+            let v2 = suffix.removeFirst()
+            // delimiterを除去
+            if suffix.first != SwiftTrainer.keyValueDelimiter {
+                continue
+            }
+            suffix.removeFirst()
+            if let decoded = decodeKeyValue(suffix) {
+                let word = SwiftTrainer.decodeKey(v1: v1, v2: v2)
+                dict[word] = decoded
+            }
+        }
+        return dict
     }
 
     public init?(baseFilename: String, n: Int, d: Double, tokenizer: ZenzTokenizer) {
@@ -81,14 +82,6 @@ public class LM {
         self.r_xbx = Marisa()
         self.vocabTrie = Marisa()
 
-        self.predictCache = [:]
-        self.c_abcCache = [:]
-        self.c_abxCache = [:]
-        self.u_abxCache = [:]
-        self.u_xbcCache = [:]
-        self.u_xbxCache = [:]
-        self.r_xbxCache = [:]
-
         self.totalTokens = 0
 
         c_abc.load("\(baseFilename)_c_abc.marisa")
@@ -101,127 +94,72 @@ public class LM {
 
         // 全てのストアドプロパティに仮の値が入ったので、ここから初めて self のメソッドを呼べる
         // totalTokens の最終値をセット
-        self.totalTokens = self.getValueC_abx([]) ?? 1
-    }
-
-    private func getValueC_abc(_ key: [Int]) -> UInt32? {
-        if let cached = c_abcCache[key] {
-            return cached
-        }
-        let val = getValue(from: c_abc, key: key)
-        c_abcCache[key] = val
-        return val
-    }
-
-    private func getValueC_abx(_ key: [Int]) -> UInt32? {
-        if let cached = c_abxCache[key] {
-            return cached
-        }
-        let val = getValue(from: c_abx, key: key)
-        c_abxCache[key] = val
-        return val
-    }
-
-    private func getValueU_abx(_ key: [Int]) -> UInt32? {
-        if let cached = u_abxCache[key] {
-            return cached
-        }
-        let val = getValue(from: u_abx, key: key)
-        u_abxCache[key] = val
-        return val
-    }
-
-    private func getValueU_xbc(_ key: [Int]) -> UInt32? {
-        if let cached = u_xbcCache[key] {
-            return cached
-        }
-        let val = getValue(from: u_xbc, key: key)
-        u_xbcCache[key] = val
-        return val
-    }
-
-    private func getValueU_xbx(_ key: [Int]) -> UInt32? {
-        if let cached = u_xbxCache[key] {
-            return cached
-        }
-        let val = getValue(from: u_xbx, key: key)
-        u_xbxCache[key] = val
-        return val
-    }
-
-    private func getValueR_xbx(_ key: [Int]) -> UInt32? {
-        if let cached = r_xbxCache[key] {
-            return cached
-        }
-        let val = getValue(from: r_xbx, key: key)
-        r_xbxCache[key] = val
-        return val
+        self.totalTokens = self.getValue(from: c_abx, key: []) ?? 1// self.getValueC_abx([]) ?? 1
     }
 
     /// Kneser-Ney の確率を求める
-    public func predict(_ ab: some BidirectionalCollection<Int>, nextWord: Int, c_abx_ab: UInt32?, u_abx_ab: UInt32?) -> Double {
-        // キャッシュにある場合は即返す
+    public func predict(
+        _ ab: some BidirectionalCollection<Int>,
+        nextWord: Int,
+        c_abx_ab: UInt32,
+        u_abx_ab: UInt32,
+        c_abc_abc: UInt32,
+        plf_items: [(
+            u_xbc_abc_ab: [Int: UInt32],
+            u_xbx_ab: UInt32?,
+            r_xbx_ab: UInt32
+        )]
+    ) -> Double {
         // ngram = [a, b, c]
         // abc = "a|b|c"
         // ab  = "a|b"
-        let ab = Array(ab)
-        let c = [nextWord]
-        let abc = ab + c
-        if let cached = predictCache[abc] {
-            return cached
-        }
-
-        let c_abc_abc = getValueC_abc(abc) ?? 0
-        let c_abx_ab  = c_abx_ab ?? getValueC_abx(ab) ?? 1
-        let u_abx_ab  = u_abx_ab ?? getValueU_abx(ab) ?? 0
-
         // (count(abc) - d) / count(ab)
         let alpha = (Double(c_abc_abc) - d) / Double(c_abx_ab)
         // d * unique(ab) / count(ab)
         let gamma = d * Double(u_abx_ab) / Double(c_abx_ab)
 
-        let plf: Double
-        do {
-            let prefix = ab.dropFirst()
-            var value = 0.0
-            var coef = 1.0
-            for i in 0 ..< prefix.count {
-                let ab = Array(prefix.dropFirst(i))
-
-                let abc = ab + c
-                let u_xbx_ab = self.getValueU_xbx(ab)
-                // 第1項
-                var alpha = 0.0
-                if let u_xbx_ab, let u_xbc_abc = self.getValueU_xbc(abc) {
-                    alpha = (Double(u_xbc_abc) - self.d) / Double(u_xbx_ab)
-                }
-                // 第2項
-                var gamma = 1.0
-                if let u_xbx_ab, let r_xbx_ab = self.getValueR_xbx(ab) {
-                    gamma = self.d * Double(r_xbx_ab) / Double(u_xbx_ab)
-                }
-                value += alpha * coef
-                coef *= gamma
+        // predict_lowerの処理
+        var plf = 0.0
+        var coef = 1.0
+        for (u_xbc_abc_ab, u_xbx_ab, r_xbx_ab) in plf_items {
+            // 第1項
+            var alpha = 0.0
+            if let u_xbx_ab {
+                let u_xbc_abc = u_xbc_abc_ab[nextWord, default: 0]
+                alpha = (Double(u_xbc_abc) - self.d) / Double(u_xbx_ab)
             }
-            value += coef / Double(self.tokenizer.vocabSize)
-            plf = value
+            // 第2項
+            var gamma = 1.0
+            if let u_xbx_ab {
+                gamma = self.d * Double(r_xbx_ab) / Double(u_xbx_ab)
+            }
+            plf += alpha * coef
+            coef *= gamma
         }
+        plf += coef / Double(self.tokenizer.vocabSize)
 
         let prob = alpha + gamma * plf
-        predictCache[abc] = prob
         return prob
     }
 
     /// Kneser-Ney の確率を求める
     public func bulkPredict(_ ngram: some BidirectionalCollection<Int>) -> [Double] {
         let ab = Array(ngram)
-        let c_abx_ab  = getValueC_abx(ab) ?? 1
-        let u_abx_ab  = getValueU_abx(ab) ?? 0
+        let c_abx_ab  = self.getValue(from: c_abx, key: ab) ?? 1
+        let u_abx_ab  = self.getValue(from: u_abx, key: ab) ?? 0
+        let c_abc_abc = self.bulkGetValue(from: self.c_abc, prefix: ab)
+        var u_xbc_abc: [(u_xbc_abc_ab: [Int: UInt32], u_xbx_ab: UInt32?, r_xbx_ab: UInt32)] = []
+        for i in 1 ..< ngram.count {
+            let ab = Array(ngram.dropFirst(i))
+            let u_xbx_ab = self.getValue(from: self.u_xbx, key: ab)
+            let r_xbx_ab = self.getValue(from: self.r_xbx, key: ab) ?? 1
+            u_xbc_abc.append((u_xbc_abc_ab: self.bulkGetValue(from: self.u_xbc, prefix: ab), u_xbx_ab: u_xbx_ab, r_xbx_ab: r_xbx_ab))
+        }
         // 全候補を探索
         var results = [Double]()
         results.reserveCapacity(tokenizer.vocabSize)
         for w in 0 ..< tokenizer.vocabSize {
-            results.append(self.predict(ab, nextWord: w, c_abx_ab: c_abx_ab, u_abx_ab: u_abx_ab))
+            results.append(self.predict(ab, nextWord: w, c_abx_ab: c_abx_ab, u_abx_ab: u_abx_ab, c_abc_abc: c_abc_abc[w, default: 0], plf_items: u_xbc_abc))
         }
         return results
     }

@@ -17,7 +17,7 @@ class SwiftNGramTests: XCTestCase {
         }
 
         let alphaList: [Double] = [0.9]
-        let inputText = "これは"
+        let inputText = "ザーサイと"
 
         for mixAlpha in alphaList {
             let generatedText = generateText(inputText: inputText, mixAlpha: mixAlpha, lmBase: lmBase, lmPerson: lmPerson, tokenizer: tokenizer)
@@ -42,7 +42,7 @@ class SwiftNGramTests: XCTestCase {
         let alphaList: [Double] = [0.9]
         let inputText = "ザーサイと"
 
-        for _ in 0 ..< 10 {
+        for _ in 0 ..< 100 {
             for mixAlpha in alphaList {
                 let generatedText = generateText(inputText: inputText, mixAlpha: mixAlpha, lmBase: lmBase, lmPerson: lmPerson, tokenizer: tokenizer, maxCount: 6)
                 XCTAssertFalse(generatedText.isEmpty, "Generated text should not be empty")
@@ -52,7 +52,7 @@ class SwiftNGramTests: XCTestCase {
     }
 
     func testTokenizers() async throws {
-        let tokenizer = try await ZenzTokenizer()
+        let tokenizer = await ZenzTokenizer()
         let inputIds = tokenizer.encode(text: "これは日本語です")
         XCTAssertEqual(inputIds, [268, 262, 253, 304, 358, 698, 246, 255])
         XCTAssertEqual(tokenizer.decode(tokens: inputIds), "これは日本語です")
