@@ -14,7 +14,7 @@ private func decodeKeyValue(_ suffix: some Collection<Int8>) -> UInt32? {
 }
 
 /// Kneser-Ney 言語モデル
-public class LM {
+public struct LM {
     public let n: Int
     public let d: Double
 
@@ -190,7 +190,7 @@ public func generateText(
                 continue
             }
 
-            let mixLogProb = log2(pBase) + mixAlpha * (log2(pPerson) - log2(pBase))
+            let mixLogProb = (1 - mixAlpha) * log2(pBase) + mixAlpha * log2(pPerson)
 
             if mixLogProb > maxProb {
                 maxProb = mixLogProb
