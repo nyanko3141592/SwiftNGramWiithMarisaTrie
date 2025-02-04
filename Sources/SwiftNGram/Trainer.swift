@@ -147,12 +147,19 @@ final class SwiftTrainer {
 
 
     /// 上記のカウント結果を marisa ファイルとして保存
-    func saveToMarisaTrie(baseFilename: String) {
-       let fileManager = FileManager.default
-        let currentDir = fileManager.currentDirectoryPath  // カレントディレクトリの取得
-        
-        // marisa ディレクトリの作成
-        let marisaDir = URL(fileURLWithPath: currentDir).appendingPathComponent("marisa")
+    func saveToMarisaTrie(baseFilename: String, outputDir: String? = nil) {
+        let fileManager = FileManager.default
+
+        // 出力フォルダの設定（デフォルト: ~/Library/Application Support/SwiftNGram/marisa/）
+        let marisaDir: URL
+        if let outputDir = outputDir {
+            marisaDir = URL(fileURLWithPath: outputDir)
+        } else {
+            let libraryDir = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
+            marisaDir = libraryDir.appendingPathComponent("SwiftNGram/marisa", isDirectory: true)
+        }
+
+        // フォルダがない場合は作成
         do {
             try fileManager.createDirectory(
                 at: marisaDir,
@@ -177,18 +184,13 @@ final class SwiftTrainer {
             marisaDir.appendingPathComponent(file).path
         }
 
-        // c_abc
+        // 各 Trie ファイルを保存
         buildAndSaveTrie(from: c_abc, to: paths[0], forBulkGet: true)
-        // c_abx
         buildAndSaveTrie(from: c_abx, to: paths[1])
-        // u_abx
         buildAndSaveTrie(from: u_abx, to: paths[2])
-        // u_xbc
         buildAndSaveTrie(from: u_xbc, to: paths[3], forBulkGet: true)
-        // u_xbx
         buildAndSaveTrie(from: u_xbx, to: paths[4])
 
-        // s_xbx は key: String, val: Set<String> なので、val は要素数のみ登録する
         let r_xbx: [[Int]: Int] = s_xbx.mapValues { $0.count }
         buildAndSaveTrie(from: r_xbx, to: paths[5])
 
@@ -237,7 +239,8 @@ public func readLinesFromFile(filePath: String) -> [String]? {
 public func trainNGram(
     lines: [String],
     n: Int,
-    baseFilename: String
+    baseFilename: String,
+    outputDir: String? = nil
 ) async {
     let tokenizer = await ZenzTokenizer()
     let trainer = SwiftTrainer(n: n, tokenizer: tokenizer)
@@ -252,8 +255,8 @@ public func trainNGram(
         }
     }
 
-    // Trie ファイルを保存
-    trainer.saveToMarisaTrie(baseFilename: baseFilename)
+    // Trie ファイルを保存（出力フォルダを渡す）
+    trainer.saveToMarisaTrie(baseFilename: baseFilename, outputDir: outputDir)
 }
 
 /// 実行例: ファイルを読み込み、n-gram を学習して保存
