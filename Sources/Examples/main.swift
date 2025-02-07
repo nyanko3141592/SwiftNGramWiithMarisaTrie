@@ -17,36 +17,32 @@ func measureExecutionTime(block: () -> String) -> (String, Double) {
     return (result, milliTime)
 }
 
-func inference(){
-    let baseFilename = "/Users/takahashinaoki/Dev/projects/mitou/SwiftNGram/marisa/lm"
+func inference() {
+    let baseFilename = "/Users/miwa/Library/Developer/Xcode/DerivedData/SwiftNGramWiithMarisaTrie-hkjbiyuowxntzafhkszomslvnsmq/Build/Products/Debug/marisa/lm"
     print("Loading LM base: \(baseFilename)")
-    guard let lmBase = LM(baseFilename: baseFilename, n: 5, d: 0.75) else {
-        print("[Error] Failed to load LM base")
-        return
-    }
-    guard let lmPerson = LM(baseFilename: baseFilename, n: 5, d: 0.75) else {
-        print("[Error] Failed to load LM person")
-        return
-    }
+    let tokenizer = ZenzTokenizer()
+    let lmBase = LM(baseFilename: baseFilename, n: 5, d: 0.75, tokenizer: tokenizer)
+    let lmPerson = LM(baseFilename: baseFilename, n: 5, d: 0.75, tokenizer: tokenizer)
 
-    let alphaList: [Double] = [0.9]
-    let alpha = alphaList[0]
-    let texts = ["彼は", "先生", "今度", "墓", "それは"]
+    let alphaList: [Double] = [0.1, 0.3, 0.5, 0.7, 0.9]
 
-    for inputText in texts {
+    for mixAlpha in alphaList {
+        let inputText = "元号"
+
         // 時間計測
         let (generatedText, elapsedTime) = measureExecutionTime {
-            generateText(inputText: inputText, mixAlpha: alpha, lmBase: lmBase, lmPerson: lmPerson, maxCount: 20)
+            generateText(inputText: inputText, mixAlpha: mixAlpha, lmBase: lmBase, lmPerson: lmPerson, tokenizer: tokenizer, maxCount: 20)
         }
 
-        print("alpha = \(alpha): \(generatedText)")
+        print("alpha = \(mixAlpha): \(generatedText)")
         print("Execution Time: \(elapsedTime) ms")
     }
 }
 
-
 func runExample() {
-    let trainFilePath = "/Users/takahashinaoki/Dev/projects/mitou/SwiftNGram/train.txt"
+//    let trainFilePath = "/Users/miwa/Desktop/SwiftNGramWiithMarisaTrie/train.txt"
+//    let trainFilePath = "/Users/miwa/Desktop/n-gram/texts.txt"
+    let trainFilePath = "/Users/miwa/Downloads/marisa-base/all_texts"
     let modelBase = "lm"
     let ngramSize = 5
 

@@ -1,28 +1,48 @@
 import XCTest
 @testable import SwiftNGram
+import Tokenizers
 
 class SwiftNGramTests: XCTestCase {
     func testInferencePerformance() {
-        let baseFilename = "/Users/takahashinaoki/Dev/projects/mitou/SwiftNGram/marisa/lm"
+        let tokenizer = ZenzTokenizer()
+        let baseFilename = "/Users/miwa/Library/Developer/Xcode/DerivedData/SwiftNGramWiithMarisaTrie-hkjbiyuowxntzafhkszomslvnsmq/Build/Products/Debug/marisa/lm"
 
-        guard let lmBase = LM(baseFilename: baseFilename, n: 5, d: 0.75) else {
-            XCTFail("[Error] Failed to load LM base")
-            return
-        }
-        guard let lmPerson = LM(baseFilename: baseFilename, n: 5, d: 0.75) else {
-            XCTFail("[Error] Failed to load LM person")
-            return
-        }
+        let lmBase = LM(baseFilename: baseFilename, n: 5, d: 0.75, tokenizer: tokenizer)
+        let lmPerson = LM(baseFilename: baseFilename, n: 5, d: 0.75, tokenizer: tokenizer)
 
         let alphaList: [Double] = [0.9]
-        let alpha = alphaList[0]
-        let texts = ["彼は", "先生", "今度", "墓", "それは"]
+        let inputText = "ザーサイと"
 
-        for inputText in texts {
-            // 時間計測
-            let generatedText = generateText(inputText: inputText, mixAlpha: alpha, lmBase: lmBase, lmPerson: lmPerson, maxCount: 20)
-
-            print("alpha = \(alpha): \(generatedText)")
+        for mixAlpha in alphaList {
+            let generatedText = generateText(inputText: inputText, mixAlpha: mixAlpha, lmBase: lmBase, lmPerson: lmPerson, tokenizer: tokenizer)
+            XCTAssertFalse(generatedText.isEmpty, "Generated text should not be empty")
+            print("Alpha \(mixAlpha): Generated text = \(generatedText)")
         }
+    }
+
+    func testPredictPerformance() {
+        let baseFilename = "/Users/miwa/Library/Developer/Xcode/DerivedData/SwiftNGramWiithMarisaTrie-hkjbiyuowxntzafhkszomslvnsmq/Build/Products/Debug/marisa/lm"
+
+        let tokenizer = ZenzTokenizer()
+        let lmBase = LM(baseFilename: baseFilename, n: 5, d: 0.75, tokenizer: tokenizer)
+        let lmPerson = LM(baseFilename: baseFilename, n: 5, d: 0.75, tokenizer: tokenizer)
+
+        let alphaList: [Double] = [0.9]
+        let inputText = "ザーサイと"
+
+        for _ in 0 ..< 1000 {
+            for mixAlpha in alphaList {
+                let generatedText = generateText(inputText: inputText, mixAlpha: mixAlpha, lmBase: lmBase, lmPerson: lmPerson, tokenizer: tokenizer, maxCount: 6)
+                XCTAssertFalse(generatedText.isEmpty, "Generated text should not be empty")
+                print("Alpha \(mixAlpha): Generated text = \(generatedText)")
+            }
+        }
+    }
+
+    func testTokenizers() throws {
+        let tokenizer = ZenzTokenizer()
+        let inputIds = tokenizer.encode(text: "これは日本語です")
+        XCTAssertEqual(inputIds, [268, 262, 253, 304, 358, 698, 246, 255])
+        XCTAssertEqual(tokenizer.decode(tokens: inputIds), "これは日本語です")
     }
 }
