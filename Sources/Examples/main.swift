@@ -39,7 +39,6 @@ func inference() {
     }
 }
 
-
 func runExample() {
 //    let trainFilePath = "/Users/miwa/Desktop/SwiftNGramWiithMarisaTrie/train.txt"
 //    let trainFilePath = "/Users/miwa/Desktop/n-gram/texts.txt"
