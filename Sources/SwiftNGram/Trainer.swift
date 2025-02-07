@@ -223,14 +223,12 @@ public func readLinesFromFile(filePath: String) -> [String]? {
     defer {
         try? fileHandle.close()
     }
-
     // UTF-8 でデータを読み込む
     let data = fileHandle.readDataToEndOfFile()
     guard let text = String(data: data, encoding: .utf8) else {
         print("[Error] UTF-8 で読み込めませんでした: \(filePath)")
         return nil
     }
-
     // 改行で分割し、空行を除去
     return text.components(separatedBy: .newlines).filter { !$0.isEmpty }
 }
@@ -241,8 +239,8 @@ public func trainNGram(
     n: Int,
     baseFilename: String,
     outputDir: String? = nil
-) async {
-    let tokenizer = await ZenzTokenizer()
+) {
+    let tokenizer = ZenzTokenizer()
     let trainer = SwiftTrainer(n: n, tokenizer: tokenizer)
 
     for (i, line) in lines.enumerated() {
@@ -260,9 +258,9 @@ public func trainNGram(
 }
 
 /// 実行例: ファイルを読み込み、n-gram を学習して保存
-public func trainNGramFromFile(filePath: String, n: Int, baseFilename: String) async {
+public func trainNGramFromFile(filePath: String, n: Int, baseFilename: String) {
     guard let lines = readLinesFromFile(filePath: filePath) else {
         return
     }
-    await trainNGram(lines: lines, n: n, baseFilename: baseFilename)
+    trainNGram(lines: lines, n: n, baseFilename: baseFilename)
 }

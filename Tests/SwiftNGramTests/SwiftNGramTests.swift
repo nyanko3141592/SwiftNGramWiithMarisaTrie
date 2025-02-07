@@ -3,8 +3,8 @@ import XCTest
 import Tokenizers
 
 class SwiftNGramTests: XCTestCase {
-    func testInferencePerformance() async {
-        let tokenizer = await ZenzTokenizer()
+    func testInferencePerformance() {
+        let tokenizer = ZenzTokenizer()
         let baseFilename = "/Users/miwa/Library/Developer/Xcode/DerivedData/SwiftNGramWiithMarisaTrie-hkjbiyuowxntzafhkszomslvnsmq/Build/Products/Debug/marisa/lm"
 
         let lmBase = LM(baseFilename: baseFilename, n: 5, d: 0.75, tokenizer: tokenizer)
@@ -20,10 +20,10 @@ class SwiftNGramTests: XCTestCase {
         }
     }
 
-    func testPredictPerformance() async {
+    func testPredictPerformance() {
         let baseFilename = "/Users/miwa/Library/Developer/Xcode/DerivedData/SwiftNGramWiithMarisaTrie-hkjbiyuowxntzafhkszomslvnsmq/Build/Products/Debug/marisa/lm"
 
-        let tokenizer = await ZenzTokenizer()
+        let tokenizer = ZenzTokenizer()
         let lmBase = LM(baseFilename: baseFilename, n: 5, d: 0.75, tokenizer: tokenizer)
         let lmPerson = LM(baseFilename: baseFilename, n: 5, d: 0.75, tokenizer: tokenizer)
 
@@ -39,8 +39,8 @@ class SwiftNGramTests: XCTestCase {
         }
     }
 
-    func testTokenizers() async throws {
-        let tokenizer = await ZenzTokenizer()
+    func testTokenizers() throws {
+        let tokenizer = ZenzTokenizer()
         let inputIds = tokenizer.encode(text: "これは日本語です")
         XCTAssertEqual(inputIds, [268, 262, 253, 304, 358, 698, 246, 255])
         XCTAssertEqual(tokenizer.decode(tokens: inputIds), "これは日本語です")
