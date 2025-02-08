@@ -19,14 +19,14 @@ let package = Package(
     ],
     dependencies: [
         .package(url: "https://github.com/ensan-hcl/SwiftyMarisa", branch: "feat/swift_cpp_interop"),
-        .package(url: "https://github.com/huggingface/swift-transformers", from: "0.1.5")
+        .package(url: "https://github.com/ensan-hcl/swift-tokenizers", branch: "feat/minimum")
     ],
     targets: [
         .target(
             name: "SwiftNGram",
             dependencies: [
                 "SwiftyMarisa",
-                .product(name: "Transformers", package: "swift-transformers")
+                .product(name: "Transformers", package: "swift-tokenizers")
             ],
             resources: [.copy("tokenizer")],
             swiftSettings: [.interoperabilityMode(.Cxx)]
