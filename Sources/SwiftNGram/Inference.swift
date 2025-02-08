@@ -20,15 +20,9 @@ public struct LM {
 
     // Tries
     let c_abc: Marisa
-    let c_abx: Marisa
     let u_abx: Marisa
     let u_xbc: Marisa
-    let u_xbx: Marisa
     let r_xbx: Marisa
-    let vocabTrie: Marisa
-
-    // 総トークン数 (ユニグラム計算用)
-    private var totalTokens: UInt32
 
     private var tokenizer: ZenzTokenizer
     /// Trie から Key に対応する Value を取得する関数
@@ -37,9 +31,6 @@ public struct LM {
         let results = trie.search(int8s, .predictive)
         for result in results {
             if let decoded = decodeKeyValue(result.dropFirst(int8s.count)) {
-                if decoded == 28224 {
-                    print(int8s, result)
-                }
                 return decoded
             }
         }
@@ -47,10 +38,11 @@ public struct LM {
     }
 
     /// 「prefix + 次の1文字」を扱うケースでbulk処理で高速化する
-    private func bulkGetValue(from trie: Marisa, prefix: [Int]) -> [UInt32] {
+    private func bulkGetValueWithSum(from trie: Marisa, prefix: [Int]) -> (values: [UInt32], sum: UInt32) {
         let int8s = SwiftTrainer.encodeKey(key: prefix) + [SwiftTrainer.predictiveDelimiter]  // 予測用のdelimiter
         let results = trie.search(int8s, .predictive)
         var dict = [UInt32](repeating: 0, count: self.tokenizer.vocabSize)
+        var sum: UInt32 = 0
         for result in results {
             var suffix = result.dropFirst(int8s.count)
             let v1 = suffix.removeFirst()
@@ -63,9 +55,10 @@ public struct LM {
             if let decoded = decodeKeyValue(suffix) {
                 let word = SwiftTrainer.decodeKey(v1: v1, v2: v2)
                 dict[word] = decoded
+                sum += decoded
             }
         }
-        return dict
+        return (dict, sum)
     }
 
     public init(baseFilename: String, n: Int, d: Double, tokenizer: ZenzTokenizer) {
@@ -75,26 +68,14 @@ public struct LM {
         self.d = d
 
         self.c_abc = Marisa()
-        self.c_abx = Marisa()
         self.u_abx = Marisa()
         self.u_xbc = Marisa()
-        self.u_xbx = Marisa()
         self.r_xbx = Marisa()
-        self.vocabTrie = Marisa()
-
-        self.totalTokens = 0
 
         c_abc.load("\(baseFilename)_c_abc.marisa")
-        c_abx.load("\(baseFilename)_c_abx.marisa")
         u_abx.load("\(baseFilename)_u_abx.marisa")
         u_xbc.load("\(baseFilename)_u_xbc.marisa")
-        u_xbx.load("\(baseFilename)_u_xbx.marisa")
         r_xbx.load("\(baseFilename)_r_xbx.marisa")
-        vocabTrie.load("\(baseFilename)_vocab.marisa")
-
-        // 全てのストアドプロパティに仮の値が入ったので、ここから初めて self のメソッドを呼べる
-        // totalTokens の最終値をセット
-        self.totalTokens = self.getValue(from: c_abx, key: []) ?? 1
     }
 
     /// Kneser-Ney Smoothingを入れたNgram LMの実装
@@ -152,15 +133,13 @@ public struct LM {
         } else {
             Array(repeating: self.tokenizer.startTokenID, count: self.n - 1 - ngram.count) + Array(ngram)
         }
-        let c_abx_ab  = self.getValue(from: c_abx, key: ab) ?? 0
         let u_abx_ab  = self.getValue(from: u_abx, key: ab) ?? 0
-        let c_abc_abc = self.bulkGetValue(from: self.c_abc, prefix: ab)
+        let (c_abc_abc, c_abx_ab) = self.bulkGetValueWithSum(from: self.c_abc, prefix: ab)
         var plf_items: [(u_xbc_abc: [UInt32], u_xbx_ab: UInt32, r_xbx_ab: UInt32)] = []
         for i in 1 ..< self.n - 1 {
             let ab = Array(ab.dropFirst(i))
-            let u_xbx_ab = self.getValue(from: self.u_xbx, key: ab) ?? 0
             let r_xbx_ab = self.getValue(from: self.r_xbx, key: ab) ?? 0
-            let u_xbc_abc = self.bulkGetValue(from: self.u_xbc, prefix: ab)
+            let (u_xbc_abc, u_xbx_ab) = self.bulkGetValueWithSum(from: self.u_xbc, prefix: ab)
             plf_items.append((u_xbc_abc: u_xbc_abc, u_xbx_ab: u_xbx_ab, r_xbx_ab: r_xbx_ab))
         }
         // 全候補を探索
