@@ -1,5 +1,5 @@
 {
-  "originHash" : "1cf500b4a4e9b769d348ce5ac6e07fb19f6e0eaa2c4265bbe28e020855de2b9f",
+  "originHash" : "fdc754a7cfa786de890387c484940f6f1ce59dd4484f55a440645c1013a45e43",
   "pins" : [
     {
       "identity" : "jinja",
@@ -8,15 +8,6 @@
       "state" : {
         "revision" : "bbddb92fc51ae420b87300298370fd1dfc308f73",
         "version" : "1.1.1"
-      }
-    },
-    {
-      "identity" : "swift-argument-parser",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/apple/swift-argument-parser.git",
-      "state" : {
-        "revision" : "0fbc8848e389af3bb55c182bc19ca9d5dc2f255b",
-        "version" : "1.4.0"
       }
     },
     {
@@ -29,12 +20,12 @@
       }
     },
     {
-      "identity" : "swift-transformers",
+      "identity" : "swift-tokenizers",
       "kind" : "remoteSourceControl",
-      "location" : "https://github.com/huggingface/swift-transformers",
+      "location" : "https://github.com/ensan-hcl/swift-tokenizers",
       "state" : {
-        "revision" : "55710ddfb1ae804b4b7ce973be75cf2e41272185",
-        "version" : "0.1.17"
+        "branch" : "feat/minimum",
+        "revision" : "9c90774fff3c85ebdf8688a4108e2d430f898414"
       }
     },
     {
