@@ -28,7 +28,7 @@ class SwiftNGramTests: XCTestCase {
         let lmPerson = LM(baseFilename: baseFilename, n: 5, d: 0.75, tokenizer: tokenizer)
 
         let alphaList: [Double] = [0.9]
-        let inputText = "ザーサイと"
+        let inputText = "元号はいつ"
 
         for _ in 0 ..< 1000 {
             for mixAlpha in alphaList {
@@ -37,6 +37,17 @@ class SwiftNGramTests: XCTestCase {
                 print("Alpha \(mixAlpha): Generated text = \(generatedText)")
             }
         }
+    }
+
+    func testBulkPredict() {
+        let baseFilename = "/Users/miwa/Library/Application Support/SwiftNGram/marisa/lm"
+
+        let tokenizer = ZenzTokenizer()
+        let lmBase = LM(baseFilename: baseFilename, n: 5, d: 0.75, tokenizer: tokenizer)
+        let results = lmBase.bulkPredict(tokenizer.encode(text: "これは"))
+        XCTAssertEqual(results.reduce(into: 0) {$0 += $1}, 1.0, accuracy: 0.0001)
+        XCTAssertTrue(results.allSatisfy{ $0 >= 0.0})
+        print(results.filter{$0 > 0.0})
     }
 
     func testTokenizers() throws {

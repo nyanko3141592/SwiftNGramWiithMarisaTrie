@@ -7,8 +7,8 @@ private func decodeKeyValue(_ suffix: some Collection<Int8>) -> UInt32? {
     let d = Int(Int8.max - 1)
     var value = 0
     for item in suffix.prefix(5) {
-        value += Int(item) - 1
         value *= d
+        value += Int(item) - 1
     }
     return UInt32(value)
 }
@@ -37,6 +37,9 @@ public struct LM {
         let results = trie.search(int8s, .predictive)
         for result in results {
             if let decoded = decodeKeyValue(result.dropFirst(int8s.count)) {
+                if decoded == 28224 {
+                    print(int8s, result)
+                }
                 return decoded
             }
         }
@@ -94,41 +97,41 @@ public struct LM {
         self.totalTokens = self.getValue(from: c_abx, key: []) ?? 1
     }
 
-    /// Kneser-Ney の確率を求める
-    public func predict(
-        _ ab: some BidirectionalCollection<Int>,
+    /// Kneser-Ney Smoothingを入れたNgram LMの実装
+    func predict(
         nextWord: Int,
         c_abx_ab: UInt32,
         u_abx_ab: UInt32,
         c_abc_abc: UInt32,
         plf_items: [(
-            u_xbc_abc_ab: [UInt32],
-            u_xbx_ab: UInt32?,
+            u_xbc_abc: [UInt32],
+            u_xbx_ab: UInt32,
             r_xbx_ab: UInt32
         )]
     ) -> Double {
         // ngram = [a, b, c]
         // abc = "a|b|c"
         // ab  = "a|b"
-        // (count(abc) - d) / count(ab)
-        let alpha = (Double(c_abc_abc) - d) / Double(c_abx_ab)
-        // d * unique(ab) / count(ab)
-        let gamma = d * Double(u_abx_ab) / Double(c_abx_ab)
+        let alpha, gamma: Double
+        if c_abx_ab != 0 {
+            alpha = max(0, Double(c_abc_abc) - self.d) / Double(c_abx_ab)
+            gamma = self.d * Double(u_abx_ab) / Double(c_abx_ab)
+        } else {
+            alpha = 0
+            gamma = 1
+        }
 
         // predict_lowerの処理
         var plf = 0.0
         var coef = 1.0
-        for (u_xbc_abc_ab, u_xbx_ab, r_xbx_ab) in plf_items {
-            // 第1項
-            var alpha = 0.0
-            if let u_xbx_ab {
-                let u_xbc_abc = u_xbc_abc_ab[nextWord]
-                alpha = (Double(u_xbc_abc) - self.d) / Double(u_xbx_ab)
-            }
-            // 第2項
-            var gamma = 1.0
-            if let u_xbx_ab {
+        for (u_xbc_abc, u_xbx_ab, r_xbx_ab) in plf_items {
+            let alpha, gamma: Double
+            if u_xbx_ab > 0 {
+                alpha = max(0, Double(u_xbc_abc[nextWord]) - self.d) / Double(u_xbx_ab)
                 gamma = self.d * Double(r_xbx_ab) / Double(u_xbx_ab)
+            } else {
+                alpha = 0
+                gamma = 1
             }
             plf += alpha * coef
             coef *= gamma
@@ -141,22 +144,30 @@ public struct LM {
 
     /// Kneser-Ney の確率を求める
     public func bulkPredict(_ ngram: some BidirectionalCollection<Int>) -> [Double] {
-        let ab = Array(ngram)
-        let c_abx_ab  = self.getValue(from: c_abx, key: ab) ?? 1
+        // abがn-1個の要素を持つように調整する
+        let ab = if ngram.count > self.n - 1 {
+            Array(ngram.suffix(self.n - 1))
+        } else if ngram.count == self.n - 1 {
+            Array(ngram)
+        } else {
+            Array(repeating: self.tokenizer.startTokenID, count: self.n - 1 - ngram.count) + Array(ngram)
+        }
+        let c_abx_ab  = self.getValue(from: c_abx, key: ab) ?? 0
         let u_abx_ab  = self.getValue(from: u_abx, key: ab) ?? 0
         let c_abc_abc = self.bulkGetValue(from: self.c_abc, prefix: ab)
-        var u_xbc_abc: [(u_xbc_abc_ab: [UInt32], u_xbx_ab: UInt32?, r_xbx_ab: UInt32)] = []
-        for i in 1 ..< ngram.count {
-            let ab = Array(ngram.dropFirst(i))
-            let u_xbx_ab = self.getValue(from: self.u_xbx, key: ab)
-            let r_xbx_ab = self.getValue(from: self.r_xbx, key: ab) ?? 1
-            u_xbc_abc.append((u_xbc_abc_ab: self.bulkGetValue(from: self.u_xbc, prefix: ab), u_xbx_ab: u_xbx_ab, r_xbx_ab: r_xbx_ab))
+        var plf_items: [(u_xbc_abc: [UInt32], u_xbx_ab: UInt32, r_xbx_ab: UInt32)] = []
+        for i in 1 ..< self.n - 1 {
+            let ab = Array(ab.dropFirst(i))
+            let u_xbx_ab = self.getValue(from: self.u_xbx, key: ab) ?? 0
+            let r_xbx_ab = self.getValue(from: self.r_xbx, key: ab) ?? 0
+            let u_xbc_abc = self.bulkGetValue(from: self.u_xbc, prefix: ab)
+            plf_items.append((u_xbc_abc: u_xbc_abc, u_xbx_ab: u_xbx_ab, r_xbx_ab: r_xbx_ab))
         }
         // 全候補を探索
         var results = [Double]()
         results.reserveCapacity(tokenizer.vocabSize)
         for w in 0 ..< tokenizer.vocabSize {
-            results.append(self.predict(ab, nextWord: w, c_abx_ab: c_abx_ab, u_abx_ab: u_abx_ab, c_abc_abc: c_abc_abc[w], plf_items: u_xbc_abc))
+            results.append(self.predict(nextWord: w, c_abx_ab: c_abx_ab, u_abx_ab: u_abx_ab, c_abc_abc: c_abc_abc[w], plf_items: plf_items))
         }
         return results
     }

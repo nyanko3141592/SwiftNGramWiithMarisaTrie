@@ -23,7 +23,7 @@ final class SwiftTrainer {
     private var u_xbc = [[Int]: Int]()
     private var u_xbx = [[Int]: Int]()
     /// Python の defaultdict(set) 相当
-    private var s_xbx = [[Int]: Set<[Int]>]()
+    private var s_xbx = [[Int]: Set<Int>]()
 
     init(n: Int, tokenizer: ZenzTokenizer) {
         self.n = n
@@ -41,12 +41,12 @@ final class SwiftTrainer {
         let Bc  = Array(ngram.dropFirst()) // bc
         // 中央部分 B, 末尾単語 c
         let B   = Array(ngram.dropFirst().dropLast())
-        let c   = ngram.last.map { [$0] } ?? []
+        let c   = ngram.last!
 
         // C(abc)
         c_abc[aBc, default: 0] += 1
         // C(ab・)
-        c_abx[aB,   default: 0] += 1
+        c_abx[aB, default: 0] += 1
 
         // 初回登場なら U(...) を更新
         if c_abc[aBc] == 1 {
@@ -58,7 +58,7 @@ final class SwiftTrainer {
             u_xbx[B, default: 0] += 1
         }
         // s_xbx[B] = s_xbx[B] ∪ {c}
-        s_xbx[B, default: []].insert(c)
+        s_xbx[B, default: Set()].insert(c)
     }
 
     /// 文から n-gram をカウント
