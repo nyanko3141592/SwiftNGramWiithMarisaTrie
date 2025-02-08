@@ -18,7 +18,7 @@ func measureExecutionTime(block: () -> String) -> (String, Double) {
 }
 
 func inference() {
-    let baseFilename = "/Users/miwa/Library/Developer/Xcode/DerivedData/SwiftNGramWiithMarisaTrie-hkjbiyuowxntzafhkszomslvnsmq/Build/Products/Debug/marisa/lm"
+    let baseFilename = "/Users/miwa/Library/Application Support/SwiftNGram/marisa/lm"
     print("Loading LM base: \(baseFilename)")
     let tokenizer = ZenzTokenizer()
     let lmBase = LM(baseFilename: baseFilename, n: 5, d: 0.75, tokenizer: tokenizer)

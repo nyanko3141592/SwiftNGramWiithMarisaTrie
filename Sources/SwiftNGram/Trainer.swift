@@ -18,12 +18,10 @@ final class SwiftTrainer {
 
     /// Python の defaultdict(int) 相当
     private var c_abc = [[Int]: Int]()
-    private var c_abx = [[Int]: Int]()
     private var u_abx = [[Int]: Int]()
     private var u_xbc = [[Int]: Int]()
-    private var u_xbx = [[Int]: Int]()
     /// Python の defaultdict(set) 相当
-    private var s_xbx = [[Int]: Set<[Int]>]()
+    private var s_xbx = [[Int]: Set<Int>]()
 
     init(n: Int, tokenizer: ZenzTokenizer) {
         self.n = n
@@ -41,12 +39,10 @@ final class SwiftTrainer {
         let Bc  = Array(ngram.dropFirst()) // bc
         // 中央部分 B, 末尾単語 c
         let B   = Array(ngram.dropFirst().dropLast())
-        let c   = ngram.last.map { [$0] } ?? []
+        let c   = ngram.last!
 
         // C(abc)
         c_abc[aBc, default: 0] += 1
-        // C(ab・)
-        c_abx[aB,   default: 0] += 1
 
         // 初回登場なら U(...) を更新
         if c_abc[aBc] == 1 {
@@ -54,11 +50,9 @@ final class SwiftTrainer {
             u_abx[aB, default: 0] += 1
             // U(・bc)
             u_xbc[Bc, default: 0] += 1
-            // U(・b・)
-            u_xbx[B, default: 0] += 1
         }
         // s_xbx[B] = s_xbx[B] ∪ {c}
-        s_xbx[B, default: []].insert(c)
+        s_xbx[B, default: Set()].insert(c)
     }
 
     /// 文から n-gram をカウント
@@ -80,21 +74,6 @@ final class SwiftTrainer {
             countSentNGram(n: k, sent: tokens)
         }
     }
-
-    /// Python の make_vocab 相当
-    /// c_abx のうち、トークン (単一語) のみを取り出して頻度順にソート
-    private func makeVocab() -> [[Int]] {
-        // c_abx の key が "単一語" か判定
-        // → "key.split('|').count == 1" 相当
-        let vocabPairs = c_abx.filter { (k, _) in
-            k.count == 1
-        }
-
-        // 頻度でソート (降順)
-        let sorted = vocabPairs.sorted { $0.value > $1.value }
-        return sorted.map { $0.key }
-    }
-
 
     static func encodeKey(key: [Int]) -> [Int8] {
         var int8s: [Int8] = []
@@ -174,36 +153,20 @@ final class SwiftTrainer {
         // ファイルパスの生成（marisa ディレクトリ内に配置）
         let paths = [
             "\(baseFilename)_c_abc.marisa",
-            "\(baseFilename)_c_abx.marisa",
             "\(baseFilename)_u_abx.marisa",
             "\(baseFilename)_u_xbc.marisa",
-            "\(baseFilename)_u_xbx.marisa",
             "\(baseFilename)_r_xbx.marisa",
-            "\(baseFilename)_vocab.marisa"
         ].map { file in
             marisaDir.appendingPathComponent(file).path
         }
 
         // 各 Trie ファイルを保存
         buildAndSaveTrie(from: c_abc, to: paths[0], forBulkGet: true)
-        buildAndSaveTrie(from: c_abx, to: paths[1])
-        buildAndSaveTrie(from: u_abx, to: paths[2])
-        buildAndSaveTrie(from: u_xbc, to: paths[3], forBulkGet: true)
-        buildAndSaveTrie(from: u_xbx, to: paths[4])
+        buildAndSaveTrie(from: u_abx, to: paths[1])
+        buildAndSaveTrie(from: u_xbc, to: paths[2], forBulkGet: true)
 
         let r_xbx: [[Int]: Int] = s_xbx.mapValues { $0.count }
-        buildAndSaveTrie(from: r_xbx, to: paths[5])
-
-        // vocab は key そのものを登録（値は持たない）
-        let vocab = makeVocab()
-        let vocabTrie = Marisa()
-        vocabTrie.build { builder in
-            for w in vocab {
-                builder(SwiftTrainer.encodeKey(key: w))
-            }
-        }
-        vocabTrie.save(paths[6])
-        print("Saved \(paths[6]): \(vocab.count) entries")
+        buildAndSaveTrie(from: r_xbx, to: paths[3])
 
         // **絶対パスでの出力**
         print("All saved files (absolute paths):")
