@@ -90,8 +90,8 @@ final class SwiftTrainer {
         int8s.reserveCapacity(key.count * 2 + 1)
         for token in key {
             let (q, r) = token.quotientAndRemainder(dividingBy: Int(Int8.max - 1))
-            int8s.append(Int8(q + 1))
-            int8s.append(Int8(r + 1))
+            int8s.append(Int8(q + 1))  // q を +1 して格納
+            int8s.append(Int8(r + 1))  // r を +1 して格納
         }
         return int8s
     }
@@ -116,22 +116,26 @@ final class SwiftTrainer {
 
     private func encodeKeyValueForBulkGet(key: [Int], value: Int) -> [Int8] {
         var key = Self.encodeKey(key: key)
-        key.insert(Self.predictiveDelimiter, at: key.count - 2)  // 1トークンはInt8が2つで表せる。最後のトークンの直前にデリミタ`Int8.min + 1`を入れ、これを用いて予測検索をする
+        // 1トークン = 2バイトで表現しているので、最後のトークン (2バイト) の直前に1バイト差し込む
+        // 例: [tok1(2バイト), tok2(2バイト), ..., tokK(2バイト)] -> (K*2 - 2)番目に min+1 を挿入
+        if key.count >= 2 {
+            key.insert(Self.predictiveDelimiter, at: key.count - 2)
+        }
         return key + [Self.keyValueDelimiter] + Self.encodeValue(value: value)
     }
 
-    /// 指定した [[Int]: Int] を Trie に登録して保存
-    private func buildAndSaveTrie(from dict: [[Int]: Int], to path: String, forBulkGet: Bool = false) {
+    /// marisa に登録してファイル保存
+    private func buildAndSaveTrie(from dict: [[Int]: Int], to path: String, forBulkGet: Bool) {
         let encode = forBulkGet ? encodeKeyValueForBulkGet : encodeKeyValue
-        let encodedStrings: [[Int8]] = dict.map(encode)
+        let encodedEntries: [[Int8]] = dict.map(encode)
         let trie = Marisa()
         trie.build { builder in
-            for entry in encodedStrings {
+            for entry in encodedEntries {
                 builder(entry)
             }
         }
         trie.save(path)
-        print("Saved \(path): \(encodedStrings.count) entries")
+        print("Saved \(path): \(encodedEntries.count) entries")
     }
 
 
@@ -173,18 +177,141 @@ final class SwiftTrainer {
 
         // 各 Trie ファイルを保存
         buildAndSaveTrie(from: c_abc, to: paths[0], forBulkGet: true)
-        buildAndSaveTrie(from: c_bc,  to: paths[1])
-        buildAndSaveTrie(from: u_abx, to: paths[2])
+        buildAndSaveTrie(from: c_bc,  to: paths[1], forBulkGet: true)
+        buildAndSaveTrie(from: u_abx, to: paths[2], forBulkGet: true)
         buildAndSaveTrie(from: u_xbc, to: paths[3], forBulkGet: true)
-        buildAndSaveTrie(from: r_xbx, to: paths[4])
+        buildAndSaveTrie(from: r_xbx, to: paths[4], forBulkGet: true)
 
-        // **絶対パスでの出力**
         print("All saved files (absolute paths):")
         for path in paths {
             print(path)
         }
     }
 
+    // MARK: - インクリメンタルトレーニング用 (既存ファイルから読み込む)
+
+    func loadFromMarisaTrie(baseFilename: String, inputDir: String? = nil) {
+        let fileManager = FileManager.default
+        let marisaDir: URL
+        if let inputDir = inputDir {
+            marisaDir = URL(fileURLWithPath: inputDir)
+        } else {
+            let libraryDir = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
+            marisaDir = libraryDir.appendingPathComponent("SwiftNGram/marisa", isDirectory: true)
+        }
+
+        let paths = [
+            "\(baseFilename)_c_abc.marisa",
+            "\(baseFilename)_c_bc.marisa",
+            "\(baseFilename)_u_abx.marisa",
+            "\(baseFilename)_u_xbc.marisa",
+            "\(baseFilename)_r_xbx.marisa",
+        ].map { file in
+            marisaDir.appendingPathComponent(file).path
+        }
+
+        if fileManager.fileExists(atPath: paths[0]) {
+            c_abc = loadDictionary(from: paths[0])
+            print("Loaded \(paths[0]): \(c_abc.count) entries")
+        }
+        if fileManager.fileExists(atPath: paths[1]) {
+            c_bc = loadDictionary(from: paths[1])
+            print("Loaded \(paths[1]): \(c_bc.count) entries")
+        }
+        if fileManager.fileExists(atPath: paths[2]) {
+            u_abx = loadDictionary(from: paths[2])
+            print("Loaded \(paths[2]): \(u_abx.count) entries")
+        }
+        if fileManager.fileExists(atPath: paths[3]) {
+            u_xbc = loadDictionary(from: paths[3])
+            print("Loaded \(paths[3]): \(u_xbc.count) entries")
+        }
+        if fileManager.fileExists(atPath: paths[4]) {
+            r_xbx = loadDictionary(from: paths[4])
+            print("Loaded \(paths[4]): \(r_xbx.count) entries")
+        }
+    }
+
+    /// marisa ファイルからすべてのエントリを取り出し、デコードして辞書へ
+    private func loadDictionary(from path: String) -> [[Int]: Int] {
+        var dict = [[Int]: Int]()
+        let trie = Marisa()
+        trie.load(path)
+        // 空キーで predict 検索すると、bulk get 用に保存されたすべてのキーが取得できる
+        for encodedEntry in trie.search([], .predictive) {
+            if let (key, value) = Self.decodeEncodedEntry(encoded: encodedEntry) {
+                dict[key] = value
+            }
+        }
+        return dict
+    }
+
+    /// エンコードされたエントリを [key, value] に復元
+    static func decodeEncodedEntry(encoded: [Int8]) -> ([Int], Int)? {
+        guard let delimiterIndex = encoded.firstIndex(of: keyValueDelimiter) else {
+            return nil
+        }
+        let keyEncoded = encoded[..<delimiterIndex]
+        let valueEncoded = encoded[(delimiterIndex + 1)...]
+
+        // bulk get 用の delimiter は削除（存在しなければ無視）
+        let filteredKeyEncoded = keyEncoded.filter { $0 != predictiveDelimiter }
+
+        // key は (v1, v2) ペアの繰り返しでエンコードしていた
+        guard filteredKeyEncoded.count % 2 == 0 else {
+            return nil
+        }
+        var key: [Int] = []
+        var index = filteredKeyEncoded.startIndex
+        while index < filteredKeyEncoded.endIndex {
+            let token = decodeKey(
+                v1: filteredKeyEncoded[index],
+                v2: filteredKeyEncoded[filteredKeyEncoded.index(after: index)]
+            )
+            key.append(token)
+            index = filteredKeyEncoded.index(index, offsetBy: 2)
+        }
+
+        // value は常に5バイト
+        guard valueEncoded.count == 5 else { return nil }
+        let d = Int(Int8.max - 1)
+        var value = 0
+        for item in valueEncoded {
+            value = value * d + (Int(item) - 1)
+        }
+
+        return (key, value)
+    }
+} // end class SwiftTrainer
+
+// MARK: - グローバル関数：追加学習（インクリメンタルトレーニング）
+
+/// 文章の配列から n-gram を学習し、既存の統計情報に追加して marisa ファイルを更新する
+public func incrementalTrainNGram(
+    lines: [String],
+    n: Int,
+    baseFilename: String,
+    dir: String? = nil
+) {
+    let tokenizer = ZenzTokenizer()
+    let trainer = SwiftTrainer(n: n, tokenizer: tokenizer)
+
+    // 既存の統計情報を読み込む
+    trainer.loadFromMarisaTrie(baseFilename: baseFilename, inputDir: dir)
+
+    // 追加学習：各文を処理
+    for (i, line) in lines.enumerated() {
+        if i % 100 == 0 {
+            print("\(i) / \(lines.count)")
+        }
+        let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !trimmed.isEmpty {
+            trainer.countSent(trimmed)
+        }
+    }
+
+    // 更新後の統計情報を保存
+    trainer.saveToMarisaTrie(baseFilename: baseFilename, outputDir: dir)
 }
 
 /// ファイルを読み込み、行ごとの文字列配列を返す関数
@@ -236,16 +363,4 @@ public func trainNGramFromFile(filePath: String, n: Int, baseFilename: String) {
         return
     }
     trainNGram(lines: lines, n: n, baseFilename: baseFilename)
-}
-
-/// Base64 でエンコードされた Key-Value をデコードする関数
-private func decodeKeyValue(_ suffix: some Collection<Int8>) -> UInt32? {
-    // 最初の5個が値をエンコードしている
-    let d = Int(Int8.max - 1)
-    var value = 0
-    for item in suffix.prefix(5) {
-        value *= d
-        value += Int(item) - 1
-    }
-    return UInt32(value)
 }
