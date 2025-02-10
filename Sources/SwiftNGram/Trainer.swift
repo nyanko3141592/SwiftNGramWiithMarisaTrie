@@ -18,10 +18,13 @@ final class SwiftTrainer {
 
     /// Python の defaultdict(int) 相当
     private var c_abc = [[Int]: Int]()
+    /// Bc (n-gram の先頭を除いた部分) の出現回数をカウント
+    private var c_bc = [[Int]: Int]()
     private var u_abx = [[Int]: Int]()
     private var u_xbc = [[Int]: Int]()
-    /// Python の defaultdict(set) 相当
-    private var s_xbx = [[Int]: Set<Int>]()
+    /// もともとユニークな続接 c の集合を保持していたものの代わりに、
+    /// 文脈 B ごとに「初出となる c の個数」を数える
+    private var r_xbx = [[Int]: Int]()
 
     init(n: Int, tokenizer: ZenzTokenizer) {
         self.n = n
@@ -44,6 +47,9 @@ final class SwiftTrainer {
         // C(abc)
         c_abc[aBc, default: 0] += 1
 
+        // Bc のカウント（例: [B, c] の出現回数）
+        c_bc[Bc, default: 0] += 1
+
         // 初回登場なら U(...) を更新
         if c_abc[aBc] == 1 {
             // U(ab・)
@@ -51,8 +57,12 @@ final class SwiftTrainer {
             // U(・bc)
             u_xbc[Bc, default: 0] += 1
         }
-        // s_xbx[B] = s_xbx[B] ∪ {c}
-        s_xbx[B, default: Set()].insert(c)
+
+        // 元は「s_xbx[B] = s_xbx[B] ∪ {c}」としていた部分を、Bc の初出（c_bc[Bc] == 1）の場合に、
+        // 文脈 B ごとに初出 c の数をカウントする（r_xbx[B] をインクリメント）ようにする
+        if c_bc[Bc] == 1 {
+            r_xbx[B, default: 0] += 1
+        }
     }
 
     /// 文から n-gram をカウント
@@ -164,8 +174,6 @@ final class SwiftTrainer {
         buildAndSaveTrie(from: c_abc, to: paths[0], forBulkGet: true)
         buildAndSaveTrie(from: u_abx, to: paths[1])
         buildAndSaveTrie(from: u_xbc, to: paths[2], forBulkGet: true)
-
-        let r_xbx: [[Int]: Int] = s_xbx.mapValues { $0.count }
         buildAndSaveTrie(from: r_xbx, to: paths[3])
 
         // **絶対パスでの出力**
@@ -226,4 +234,16 @@ public func trainNGramFromFile(filePath: String, n: Int, baseFilename: String) {
         return
     }
     trainNGram(lines: lines, n: n, baseFilename: baseFilename)
+}
+
+/// Base64 でエンコードされた Key-Value をデコードする関数
+private func decodeKeyValue(_ suffix: some Collection<Int8>) -> UInt32? {
+    // 最初の5個が値をエンコードしている
+    let d = Int(Int8.max - 1)
+    var value = 0
+    for item in suffix.prefix(5) {
+        value *= d
+        value += Int(item) - 1
+    }
+    return UInt32(value)
 }
