@@ -163,6 +163,7 @@ final class SwiftTrainer {
         // ファイルパスの生成（marisa ディレクトリ内に配置）
         let paths = [
             "\(baseFilename)_c_abc.marisa",
+            "\(baseFilename)_c_bc.marisa",
             "\(baseFilename)_u_abx.marisa",
             "\(baseFilename)_u_xbc.marisa",
             "\(baseFilename)_r_xbx.marisa",
@@ -172,9 +173,10 @@ final class SwiftTrainer {
 
         // 各 Trie ファイルを保存
         buildAndSaveTrie(from: c_abc, to: paths[0], forBulkGet: true)
-        buildAndSaveTrie(from: u_abx, to: paths[1])
-        buildAndSaveTrie(from: u_xbc, to: paths[2], forBulkGet: true)
-        buildAndSaveTrie(from: r_xbx, to: paths[3])
+        buildAndSaveTrie(from: c_bc,  to: paths[1])
+        buildAndSaveTrie(from: u_abx, to: paths[2])
+        buildAndSaveTrie(from: u_xbc, to: paths[3], forBulkGet: true)
+        buildAndSaveTrie(from: r_xbx, to: paths[4])
 
         // **絶対パスでの出力**
         print("All saved files (absolute paths):")
